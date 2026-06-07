@@ -1,0 +1,5 @@
+region,depth,n_sites,exact_acc_med,class_err_med,kappa_med
+All sites,Middle,592,0.2990583590281812,1.3442285544741637,0.21831737358137487
+All sites,Shallow,611,0.33276740237691,1.180620884289746,0.3046395209022996
+UMRB Mesonet,Middle,0,NA,NA,NA
+UMRB Mesonet,Shallow,0,NA,NA,NA

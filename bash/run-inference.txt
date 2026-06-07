@@ -1,0 +1,13 @@
+conda activate gpu-ml
+
+export GDAL_NUM_THREADS=ALL_CPUS
+export GDAL_CACHEMAX=4096
+
+PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True" \
+python /home/zhoylman/soil-moisture-ml/py/raster_inference.py \
+  --model /data/ssd2/soil-moisture-ml/results-kfold-shallow/fold_1_uNET_fold_1_08_12_2025-16_34_27_163406/model.pt \
+  --inp /data/ssd2/soil-moisture-ml/inference-rasters/inference-stack/current-inference.tif \
+  --out /data/ssd2/soil-moisture-ml/inference-rasters/inference-stack/current-inference-out-test.tif \
+  --timesteps 180 --channels_per_step 61 --model_layout TC --write_mode multiband \
+  --model_kind seq --seq_chunk_px 4096 \
+  --tile 256 --overlap 32 --batch_size 1 --device cuda
