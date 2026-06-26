@@ -42,6 +42,7 @@ python raster_inference.py \
 
 import argparse
 import math
+import os
 import sys
 from pathlib import Path
 from typing import Optional
@@ -197,6 +198,11 @@ def prepare_input_5d(data_chw: np.ndarray,
 
     # Assume band order: t0_c0..t0_c(C-1), t1_c0.., ..., t(T-1)_c(C-1)
     x = data_chw.reshape(timesteps, channels_per_step, H, W)  # [T,C,H,W]
+    # Optional input-channel freeze (e.g. the `year` feature): override one channel
+    # across all timesteps with a constant. Set via env so no signature churn.
+    _fc = os.environ.get("FREEZE_CHANNEL"); _fv = os.environ.get("FREEZE_VALUE")
+    if _fc is not None and _fv is not None:
+        x[:, int(_fc), :, :] = np.float32(float(_fv))   # year held at validation-period center
     if model_layout == "TC":
         return x
     else:  # 'flat'

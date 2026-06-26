@@ -23,24 +23,49 @@ terraOptions(memfrac = 0.7)
 # ---------------------------------------------------------------------
 # MODEL SELECTION FLAG: choose "middle" or "shallow"
 # ---------------------------------------------------------------------
-depth_flag <- "shallow"   # <<< CHANGE HERE >>> 
+depth_flag <- Sys.getenv("DEPTH_FLAG", "shallow")   # <<< or set DEPTH_FLAG env >>>
 stopifnot(depth_flag %in% c("middle", "shallow"))
 
+# Delete the throwaway 180-band pred (pred-180-*) immediately after it is trimmed to
+# center-60. pred-180 is ~1.9 TB/depth if kept; center-60 is the durable artifact the
+# stitch reads, so resume keys off center-60. Set FALSE to keep the old behavior.
+CLEAN_INTERMEDIATE <- TRUE
+MIN_FREE_GB_SSD3   <- 200L   # abort a window if ssd3 free drops below this (protect ops)
+free_gb = function(path="/data/ssd3") as.numeric(system(sprintf("df -BG --output=avail %s | tail -1 | tr -dc '0-9'", path), intern=TRUE))
+
 # ---------------------------------------------------------------------
-# Paths (auto-configured from depth_flag)
+# YEAR-FEATURE ARTIFACT FIX (diagnosed 2026-06)
+# The `year` input feature is a linear-in-time ramp the model latched onto,
+# producing a spurious multidecadal WETTING trend (deep-only) when extrapolated
+# across 1981-2026. Freezing `year` at the validation-period center neutralizes
+# it (ablation: middle SW trend +0.012/dec -> -0.004/dec). Outputs route to
+# "-yearfrozen" dirs so the current live product and ops pipeline are untouched.
+# NOTE: this is the FULL-HISTORY year-frozen RECONSTRUCTION (rebuilds the frozen
+# climatology too) — kept isolated in -yearfrozen until it completes and is promoted
+# wholesale. The interim OPERATIONAL year-freeze for the SERVED product lives in the
+# v1-OPS repo (hhp-kgml-soil-moisture-v1-ops: SM_FREEZE_YEAR, raster_inference.py),
+# NOT here — do not un-suffix this one or it will clobber the live legacy dirs.
 # ---------------------------------------------------------------------
-daily_dir   = glue("/data/ssd4/soil-moisture-ml-inference/inference-rasters/historical-forcing-data-normalized")
-stack_dir   = glue("/data/ssd4/soil-moisture-ml-inference/inference-rasters/inference-stack-temp-{depth_flag}")
-pred_dir    = glue("/data/ssd3/soil-moisture-ml-inference/predictions-180-{depth_flag}")         # 180-band per fold
-center_dir  = glue("/data/ssd3/soil-moisture-ml-inference/predictions-center60-{depth_flag}")    # 60-band per fold
-smoothed_dir= glue("/data/ssd3/soil-moisture-ml-inference/predictions-smoothed-daily-{depth_flag}") # daily stitched per fold
-time_dir    = glue("/data/ssd3/soil-moisture-ml-inference/time-index-{depth_flag}")               # band->date CSVs
+FREEZE_YEAR      <- TRUE
+YEAR_FROZEN_NORM <- (2013 - 1979) / (2023 - 1979)   # 0.7727 normalized (year held at 2013)
+out_suffix       <- if (isTRUE(FREEZE_YEAR)) "-yearfrozen" else ""
+
+# ---------------------------------------------------------------------
+# Paths (auto-configured from depth_flag). Output dirs carry out_suffix so a
+# frozen-year run never overwrites the as-is product.
+# ---------------------------------------------------------------------
+daily_dir   = glue("/data/ssd4/soil-moisture-ml-inference/inference-rasters/historical-forcing-data-normalized")  # INPUT (shared, unchanged)
+stack_dir   = glue("/data/ssd4/soil-moisture-ml-inference/inference-rasters/inference-stack-temp-{depth_flag}{out_suffix}")
+pred_dir    = glue("/data/ssd3/soil-moisture-ml-inference/predictions-180-{depth_flag}{out_suffix}")         # 180-band per fold
+center_dir  = glue("/data/ssd3/soil-moisture-ml-inference/predictions-center60-{depth_flag}{out_suffix}")    # 60-band per fold
+smoothed_dir= glue("/data/ssd3/soil-moisture-ml-inference/predictions-smoothed-daily-{depth_flag}{out_suffix}") # daily stitched per fold
+time_dir    = glue("/data/ssd3/soil-moisture-ml-inference/time-index-{depth_flag}{out_suffix}")               # band->date CSVs
 
 # Per-depth models root
 models_root = glue("/data/ssd2/soil-moisture-ml/results-kfold-{depth_flag}")
 
 # Ensemble outputs (across folds)
-ensemble_root      = glue("/data/ssd3/soil-moisture-ml-inference/ensemble-smoothed-daily-{depth_flag}")
+ensemble_root      = glue("/data/ssd3/soil-moisture-ml-inference/ensemble-smoothed-daily-{depth_flag}{out_suffix}")
 ensemble_median_dir= file.path(ensemble_root, "median")
 ensemble_iqr_dir   = file.path(ensemble_root, "iqr")
 
@@ -52,8 +77,9 @@ invisible(lapply(dirs_to_make, dir.create, recursive = TRUE, showWarnings = FALS
 # ---------------------------------------------------------------------
 # Model / inference configuration
 # ---------------------------------------------------------------------
-python_bin   = "/home/zhoylman/miniconda3/envs/gpu-ml/bin/python"
-infer_script = "/home/zhoylman/hhp-kgml-soil-moisture-v1/py/raster_inference.py"
+python_bin    = "/home/zhoylman/miniconda3/envs/gpu-ml/bin/python"
+infer_script  = "/home/zhoylman/hhp-kgml-soil-moisture-v1/py/raster_inference.py"
+infer_multifold = "/home/zhoylman/hhp-kgml-soil-moisture-v1/py/infer_window_multifold.py"  # read forcing once, run all folds
 timesteps          = 180L
 channels_per_step  = 61L
 tile_px            = 512L
@@ -108,6 +134,10 @@ build_180_stack = function(d_end, dir_daily = daily_dir) {
   rs = lapply(paths, rast)
   stk = rast(rs)
   names(stk) = paste0("day", sprintf("%03d_", seq_along(dates)), names(stk))
+  # NOTE: the `year` freeze is applied downstream in raster_inference.py (env
+  # FREEZE_CHANNEL/FREEZE_VALUE) at read time — NOT here. Doing it in R forced the
+  # whole 10,980-band stack into memory (72 GB, ~27 min/window). Keeping the stack
+  # build lazy/streamed; python overrides the year channel per tile for free.
   stk
 }
 
@@ -137,6 +167,8 @@ run_inference = function(inp_tif, out_tif, model_path) {
     "OMP_WAIT_POLICY=PASSIVE",                          # reduce CPU spin while GPU runs
     "MALLOC_ARENA_MAX=4"                                # avoid glibc arena bloat
   )
+  # year-feature freeze: override channel idx 9 (0-based `year`) with 0.7727 at read time
+  if (isTRUE(FREEZE_YEAR)) env = c(env, "FREEZE_CHANNEL=9", glue("FREEZE_VALUE={YEAR_FROZEN_NORM}"))
   logf <- sub("\\.tif$", ".log", out_tif)
   
   args = c(
@@ -208,7 +240,7 @@ latest_complete_end = function(pred_dir_f) {
     function(fid) {
       f = list.files(
         pred_dir_f[[fid]],
-        pattern = "^pred-180-\\d{4}-\\d{2}-\\d{2}\\.tif$",
+        pattern = "^pred-center60-\\d{4}-\\d{2}-\\d{2}\\.tif$",   # resume off the DURABLE center-60 (pred-180 is auto-deleted)
         full.names = FALSE
       )
       if (!length(f)) return(as.Date(NA))
@@ -221,8 +253,8 @@ latest_complete_end = function(pred_dir_f) {
   min(last_by_fold, na.rm = TRUE)
 }
 
-# ...after you compute `ends` originally
-res_done = latest_complete_end(pred_dir_f)
+# ...after you compute `ends` originally (scan center-60 dirs: the durable artifact)
+res_done = latest_complete_end(center_dir_f)
 if (!is.na(res_done)) {
   ends = ends[ends > res_done]
   message(
@@ -242,62 +274,39 @@ tictoc::tic(glue("Running {depth_flag} models"))
 for (d_end in ends) {
   d_end = as.Date(d_end)
   message("\n=== Window ending ", d_end, " ===")
-  
-  # 1) Build forcing stack (shared by all folds for this window)
-  stack_path = file.path(stack_dir, glue("inference-{as.character(d_end)}.tif"))
-  if (!file.exists(stack_path)) {
-    stk = build_180_stack(d_end)
-    if (is.null(stk)) {
-      message("  Skipping ", d_end, " (missing daily inputs).")
-      next
-    }
-    writeRaster(stk, stack_path, overwrite = TRUE,
-                wopt = list(datatype = "FLT4S", gdal = c("COMPRESS=LZW","BIGTIFF=IF_SAFER","TILED=YES")))
-    rm(stk); gc()
-  } else {
-    message("  Forcing stack already exists.")
+
+  # disk safety: bail out cleanly rather than fill ssd3 (shared with ops)
+  fg = tryCatch(free_gb("/data/ssd3"), error = function(e) NA_real_)
+  if (is.finite(fg) && fg < MIN_FREE_GB_SSD3) {
+    message("  ABORT: ssd3 free ", fg, "G < ", MIN_FREE_GB_SSD3, "G floor. Stopping to protect ops; rerun to resume.")
+    break
   }
-  
-  # 2) Write time index CSVs
-  write_time_csv(d_end, "full180")
-  write_time_csv(d_end, "center60")
-  
-  # 3) Run inference for each fold on this stack; trim to center-60
-  for (fold_id in names(fold_models)) {
-    model_path   <- fold_models[[fold_id]]
-    pred180_path <- file.path(pred_dir_f[[fold_id]], glue("pred-180-{as.character(d_end)}.tif"))
-    pred60_path  <- file.path(center_dir_f[[fold_id]], glue("pred-center60-{as.character(d_end)}.tif"))
-    
-    if (!file.exists(pred180_path)) {
-      message("  [", fold_id, "] inference …")
-      status = run_inference(stack_path, pred180_path, model_path)
-      if (!identical(status, 0L)) {
-        message("  [", fold_id, "] FAILED for ", d_end, " (status=", status, ").")
-        next
-      }
-    } else {
-      message("  [", fold_id, "] 180-band prediction already exists.")
-    }
-    
-    if (!file.exists(pred60_path)) {
-      r180  = rast(pred180_path)
-      r60   = r180[[61:120]]
-      dates = seq(d_end - 179, d_end, by = "1 day")[61:120]
-      names(r60) = paste0("vwc_", dates)
-      writeRaster(r60, pred60_path, overwrite = TRUE,
-                  wopt = list(datatype = "FLT4S", gdal = c("COMPRESS=LZW","BIGTIFF=IF_SAFER","TILED=YES")))
-      rm(r180, r60); gc()
-    } else {
-      message("  [", fold_id, "] center-60 already exists.")
-    }
+
+  # 1) Inputs exist? (the forcing grids are already built; we never regenerate them)
+  dts   = seq(d_end - 179, d_end, by = "1 day")
+  paths = file.path(daily_dir, paste0("normalized-data-", as.character(dts), ".tif"))
+  if (!all(file.exists(paths))) {
+    message("  Skipping ", d_end, " (missing daily inputs).")
+    next
   }
-  
-  # 4) Clean up big intermediate forcing stack
-  if (file.exists(stack_path)) file.remove(stack_path)
-  
-  # 5) Terra temp hygiene
-  tf = try(terra::tmpFiles(), silent = TRUE)
-  if (!inherits(tf, "try-error") && length(tf)) suppressWarnings(file.remove(tf))
+  write_time_csv(d_end, "center60")   # keep for downstream compatibility
+
+  # 2) ONE python process: read the 180 dailies once, freeze `year`, run ALL folds
+  #    on the shared in-memory forcing, write each fold's center-60 directly.
+  #    No materialized stack, no per-fold re-reads (it skips folds already done).
+  models_arg = paste(sprintf("%s=%s", names(fold_models), unname(fold_models)), collapse = ",")
+  mf_env = c("CUDA_DEVICE_ORDER=PCI_BUS_ID", "CUDA_VISIBLE_DEVICES=1",
+             "PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True,max_split_size_mb:256",
+             "OMP_NUM_THREADS=16", "GDAL_NUM_THREADS=8")
+  mf_args = c(infer_multifold,
+              "--daily_dir", daily_dir, "--d_end", as.character(d_end),
+              "--models", models_arg, "--out_root", center_dir,
+              "--timesteps", as.character(timesteps), "--channels", as.character(channels_per_step),
+              "--tile", "512", "--chunk_px", "8192", "--device", device)
+  if (isTRUE(FREEZE_YEAR)) mf_args = c(mf_args, "--freeze_channel", "9", "--freeze_value", as.character(YEAR_FROZEN_NORM))
+  mf_log = file.path(center_dir, glue("multifold-{as.character(d_end)}.log"))
+  status = system2(python_bin, mf_args, env = mf_env, stdout = mf_log, stderr = mf_log)
+  if (!identical(status, 0L)) message("  [multifold] FAILED for ", d_end, " (status=", status, ").")
   gc()
 }
 tictoc::toc()
