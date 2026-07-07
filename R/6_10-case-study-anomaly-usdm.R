@@ -50,7 +50,7 @@ if (smi_method == "varaug") {
   folds_root = NULL
   out_png = if (event == "2017") "case_study_anomaly_vs_usdm.png" else glue("case_study_anomaly_vs_usdm_{event}.png")
 }
-depth_lab = c(shallow = "Soil Moisture Anomaly (0-10 cm)", middle = "Soil Moisture Anomaly (10-50 cm)")
+depth_lab = c(shallow = "Shallow (0–10 cm)", middle = "Mid-depth (10–50 cm)")
 
 proj_out = "EPSG:5070"   # original maps were rendered in Albers (EPSG:5070); 4326 flattens the N. Plains
 missouri_basin = sf::read_sf("~/temp/WBD_10_HU2_Shape/Shape/WBDHU2.shp") |> st_transform(proj_out) |> select(-name)
@@ -196,6 +196,10 @@ combined = patchwork::wrap_plots(
   H = usdm_panels[[1]], I = usdm_panels[[2]], J = usdm_panels[[3]],
   G = patchwork::guide_area(),
   design = design, guides = "collect",
-  heights = c(1, 1, 1.35), widths = c(1, 1, 1, 0.28))
+  heights = c(1, 1, 1.35), widths = c(1, 1, 1, 0.28)) +
+  patchwork::plot_annotation(
+    title = "Soil Moisture Index — 2017 Northern Great Plains Flash Drought",
+    theme = theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 22,
+                                            margin = margin(t = 4, b = 8))))
 ggsave(glue("{figs_dir}/{out_png}"), combined, width = 18, height = 11.5, dpi = 200, bg = "white")
 message(glue("Wrote figs/{out_png}"))
