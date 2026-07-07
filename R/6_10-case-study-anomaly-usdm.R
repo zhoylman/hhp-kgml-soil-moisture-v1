@@ -198,8 +198,11 @@ combined = patchwork::wrap_plots(
   design = design, guides = "collect",
   heights = c(1, 1, 1.35), widths = c(1, 1, 1, 0.28)) +
   patchwork::plot_annotation(
-    title = "Soil Moisture Index — 2017 Northern Great Plains Flash Drought",
-    theme = theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 22,
-                                            margin = margin(t = 4, b = 8))))
+    title = "Knowledge-Guided Machine Learning (KGML) Soil Moisture Index",
+    subtitle = "2017 Northern Great Plains Flash Drought",
+    theme = theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 21,
+                                            margin = margin(t = 4, b = 2)),
+                  plot.subtitle = element_text(hjust = 0.5, size = 15,
+                                               margin = margin(b = 8))))
 ggsave(glue("{figs_dir}/{out_png}"), combined, width = 18, height = 11.5, dpi = 200, bg = "white")
 message(glue("Wrote figs/{out_png}"))
