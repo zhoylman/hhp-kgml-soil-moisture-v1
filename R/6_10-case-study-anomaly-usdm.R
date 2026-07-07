@@ -146,8 +146,7 @@ map_smi = function(r_smi, title, subtitle) {
     theme(panel.grid = element_blank(), axis.title = element_blank(), axis.text = element_blank(),
           plot.title = element_text(face = "bold", hjust = 0.5, margin = margin(b = 1)),
           plot.subtitle = element_text(face = "bold", hjust = 0.5, margin = margin(b = 1)),
-          legend.key.height = unit(0.35, "cm"), legend.key.width = unit(0.45, "cm"),
-          legend.title = element_text(size = 8), legend.text = element_text(size = 7),
+          legend.position = "none",   # legends stripped from all panels; re-enabled on ONE below
           plot.margin = margin(t = 1, r = 2, b = 1, l = 2))
 }
 
@@ -173,11 +172,30 @@ usdm_panels = lapply(seq_along(usdm_dates), function(i) {
 })
 
 # ---- assemble 3 x 3 ----
+# Re-enable the legend on exactly ONE panel so guides="collect" has a single
+# guide to route into guide_area (patchwork won't merge the per-row guides).
+ref_key = glue("shallow_{kgml_dates[3]}")
+kgml_maps[[ref_key]] = kgml_maps[[ref_key]] +
+  theme(legend.position = "right",
+        legend.key.height = unit(0.55, "cm"), legend.key.width = unit(0.5, "cm"),
+        legend.title = element_text(size = 11), legend.text = element_text(size = 9.5))
+
 sh = kgml_maps[paste0("shallow_", kgml_dates)]
 mi = kgml_maps[paste0("middle_",  kgml_dates)]
-combined = (sh[[1]] | sh[[2]] | sh[[3]]) /
-           (mi[[1]] | mi[[2]] | mi[[3]]) /
-           (usdm_panels[[1]] | usdm_panels[[2]] | usdm_panels[[3]]) +
-           patchwork::plot_layout(heights = c(1, 1, 1.35))   # USDM PNGs are taller; give them more room so KGML rows aren't stretched
+# Single shared SMI legend via a dedicated guide_area() cell (column G on the
+# right, spanning all rows). guides="collect" routes the six identical legends
+# into that one area -> exactly one legend. USDM PNGs get extra row height.
+design <- "
+ABCG
+DEFG
+HIJG
+"
+combined = patchwork::wrap_plots(
+  A = sh[[1]], B = sh[[2]], C = sh[[3]],
+  D = mi[[1]], E = mi[[2]], F = mi[[3]],
+  H = usdm_panels[[1]], I = usdm_panels[[2]], J = usdm_panels[[3]],
+  G = patchwork::guide_area(),
+  design = design, guides = "collect",
+  heights = c(1, 1, 1.35), widths = c(1, 1, 1, 0.28))
 ggsave(glue("{figs_dir}/{out_png}"), combined, width = 18, height = 11.5, dpi = 200, bg = "white")
 message(glue("Wrote figs/{out_png}"))
