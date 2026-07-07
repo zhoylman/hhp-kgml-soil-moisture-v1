@@ -317,70 +317,84 @@ message("\nAll windows processed. Center-60 per-fold outputs in: ", center_dir)
 # ============================
 w <- gaussian_weights()
 
-for (fold_id in names(fold_models)) {
-  message("\n--- Stitching fold: ", fold_id, " ---")
+# Per-fold stitch body (identical blend/write math to the original serial loop).
+# Folds are independent, so we run them in parallel via mclapply (fork -> inherits
+# helpers/config, no export needed). Two safety additions vs the serial version:
+#   - `.stitch_done` marker: skip a fold that already finished (resume-safe;
+#     preserves e.g. a fold stitched by an earlier serial run).
+#   - per-fork terra tempdir: the `tmpFiles()` cleanup below removes ALL of a
+#     process's terra temp files, which across parallel forks would delete each
+#     other's scratch — so each fork gets its own tempdir.
+stitch_one_fold <- function(fold_id) {
   fold_center_dir   <- center_dir_f[[fold_id]]
   fold_smoothed_dir <- smoothed_dir_f[[fold_id]]
+  done_marker       <- file.path(fold_smoothed_dir, ".stitch_done")
+  if (file.exists(done_marker)) { message("  [", fold_id, "] already stitched; skip."); return(invisible(TRUE)) }
   dir.create(fold_smoothed_dir, recursive = TRUE, showWarnings = FALSE)
-  
+
+  fork_tmp <- file.path(tempdir(), paste0("terra_stitch_", fold_id))
+  dir.create(fork_tmp, recursive = TRUE, showWarnings = FALSE)
+  terraOptions(tempdir = fork_tmp, memfrac = 0.05)
+
+  message("\n--- Stitching fold: ", fold_id, " ---")
   center_df <- tibble(
     path = list.files(fold_center_dir, pattern = "^pred-center60-\\d{4}-\\d{2}-\\d{2}\\.tif$", full.names = TRUE)
   ) |>
     mutate(d_end = as.Date(str_extract(basename(path), "\\d{4}-\\d{2}-\\d{2}"))) |>
     arrange(d_end)
-  
+
   if (nrow(center_df) == 0) {
     message("  No center-60 files found for ", fold_id, ". Skipping.")
-    next
+    return(invisible(FALSE))
   }
-  
+
   paths <- center_df$path
   n_chunks <- length(paths)
-  
+
   # Open first chunk
   r_prev     <- rast(paths[1])
   dates_prev <- dates_for_center60(center_df$d_end[1])
-  
+
   # Write leading non-overlap days directly
   lead_n <- keep_len - overlap
   if (lead_n > 0) {
     for (i in 1:lead_n) write_day(r_prev[[i]], dates_prev[i], fold_smoothed_dir)
   }
-  
+
   # Iterate over adjacent pairs
   if (n_chunks >= 2) {
     for (k in 1:(n_chunks - 1)) {
       r_cur     <- rast(paths[k + 1])
       dates_cur <- dates_for_center60(center_df$d_end[k + 1])
-      
+
       # Cross-fade overlap
       prev_idx <- (keep_len - overlap + 1):keep_len
       cur_idx  <- 1:overlap
       w_prev <- w[prev_idx]
       w_cur  <- w[cur_idx]
-      
+
       for (j in seq_len(overlap)) {
         dt <- dates_cur[j]
         out <- blend_two(r_prev[[prev_idx[j]]], r_cur[[cur_idx[j]]], w_prev[j], w_cur[j])
         write_day(out, dt, fold_smoothed_dir)
       }
-      
+
       # Write interior of current chunk directly
       mid_start <- overlap + 1
       mid_end   <- keep_len - overlap
       if (mid_end >= mid_start) {
         for (i in mid_start:mid_end) write_day(r_cur[[i]], dates_cur[i], fold_smoothed_dir)
       }
-      
+
       rm(r_prev); gc()
       r_prev     <- r_cur
       dates_prev <- dates_cur
-      
+
       tf <- try(terra::tmpFiles(), silent = TRUE)
       if (!inherits(tf, "try-error") && length(tf)) suppressWarnings(file.remove(tf))
     }
   }
-  
+
   # Tail of the last chunk
   if (n_chunks >= 1) {
     tail_idx <- (keep_len - overlap + 1):keep_len
@@ -389,9 +403,17 @@ for (fold_id in names(fold_models)) {
     }
     rm(r_prev); gc()
   }
-  
+
+  unlink(fork_tmp, recursive = TRUE)
+  file.create(done_marker)   # mark complete only after all days written
   message("  Smoothed daily series for ", fold_id, " -> ", fold_smoothed_dir)
+  invisible(TRUE)
 }
+
+n_stitch_workers <- min(length(fold_models), 10L)
+message("\nStitching ", length(fold_models), " folds in parallel (", n_stitch_workers, " workers)...")
+invisible(parallel::mclapply(names(fold_models), stitch_one_fold,
+                             mc.cores = n_stitch_workers, mc.preschedule = FALSE))
 
 message("\nAll folds stitched to daily rasters in: ", smoothed_dir)
 

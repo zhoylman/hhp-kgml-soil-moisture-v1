@@ -25,9 +25,15 @@ clim_dir   = glue("{repo}/cache/climatology")
 out_ds     = glue("{repo}/cache/datasets"); dir.create(out_ds, showWarnings = FALSE, recursive = TRUE)
 clim_start = as.Date("1996-01-01")
 roots = c("/data/ssd3/soil-moisture-ml-inference", "/data/ssd4/soil-moisture-ml-inference")
+# ARCH_SUFFIX "" (default) = the as-is archive; "-yearfrozen" = the corrected regen.
+# The suffix also keys the extraction cache and the output CSV/RDS, so runs never
+# mix or clobber each other. VAL_DEPTHS limits depths (e.g. "Middle" while the
+# shallow year-frozen regen is still running).
+arch_suffix = Sys.getenv("ARCH_SUFFIX", "")
+val_depths  = strsplit(Sys.getenv("VAL_DEPTHS", "Shallow Middle"), " ")[[1]]
 sport_var = c(shallow = "SPoRT_raw_0-10cm", middle = "SPoRT_raw_10-40cm")
 resolve_fold_dir = function(dep, fold) {
-  cand = file.path(roots, glue("predictions-smoothed-daily-{dep}"), glue("fold_{fold}"))
+  cand = file.path(roots, glue("predictions-smoothed-daily-{dep}{arch_suffix}"), glue("fold_{fold}"))
   hit = cand[dir.exists(cand)]; if (length(hit)) hit[1] else cand[1]
 }
 
@@ -55,7 +61,7 @@ run_fold = function(fold, depth_flag) {
       raster_dir = resolve_fold_dir(dep, fold),
       obs_dates  = seq(clim_start, as.Date("2027-01-01"), by = "day"),
       site_ids = meta_xy$site_id, meta_xy = meta_xy,
-      cache_file = file.path(clim_dir, glue("{dep}_fold_{fold}_30yr.rds")),
+      cache_file = file.path(clim_dir, glue("{dep}{arch_suffix}_fold_{fold}_30yr.rds")),
       label = glue("kfold {fold} [{dep}]"))
     if (!nrow(model)) return(NULL)
 
@@ -84,17 +90,17 @@ run_depth = function(depth_flag) {
                       seed = NULL,
                       globals = c("run_fold", "extract_at_sites", "standardize_doy_beta",
                                   "resolve_fold_dir", "site_meta", "clim_start", "clim_dir",
-                                  "obs_dir", "split_dir", "roots", "depth_flag"),
+                                  "obs_dir", "split_dir", "roots", "depth_flag", "arch_suffix"),
                       packages = c("dplyr", "tidyr", "readr", "tibble", "stringr",
                                    "terra", "glue", "MASS", "cli", "rlang"))) |> purrr::compact()
   plan(sequential)
   bind_rows(outs)
 }
 
-matched = bind_rows(lapply(c("Shallow", "Middle"), run_depth))
+matched = bind_rows(lapply(val_depths, run_depth))
 
 # ---- SPoRT SMI per site (standardize the SPoRT sims) + truth class ----
-sport_smi = bind_rows(lapply(c("Shallow", "Middle"), function(depth_flag) {
+sport_smi = bind_rows(lapply(val_depths, function(depth_flag) {
   dep = tolower(depth_flag)
   sims = read_csv(glue("{obs_dir}/observational-sites-raw-sport.csv"), show_col_types = FALSE) |>
     mutate(date = as.Date(time)) |> filter(var == sport_var[[dep]]) |>
@@ -110,10 +116,10 @@ matched = matched |>
   left_join(sport_smi, by = c("site_id", "depth", "date")) |>
   mutate(truth_class = smi_to_class(obs_smi))
 
-saveRDS(matched, file.path(out_ds, "kfold_matched.rds"))
+saveRDS(matched, file.path(out_ds, glue("kfold_matched{arch_suffix}.rds")))
 
 # ---- SPoRT-LIS raw per-site metrics (fair depth: sport-specific 10-40 obs) ----
-sport_raw = bind_rows(lapply(c("Shallow", "Middle"), function(depth_flag) {
+sport_raw = bind_rows(lapply(val_depths, function(depth_flag) {
   dep = tolower(depth_flag)
   obs_sp = read_csv(glue("{obs_dir}/final-soil-moisture-data-generalized-sport-specific-no-frozen.csv"),
                     show_col_types = FALSE) |>
@@ -145,9 +151,9 @@ kfold_validation = matched |>
          KGE, r, pbias, KGE_sport, r_sport, pbias_sport, smi_mae, n_smi) |>
   arrange(depth, network, site_id)
 
-readr::write_csv(kfold_validation, glue("{repo}/tables/kfold_validation.csv"))
+readr::write_csv(kfold_validation, glue("{repo}/tables/kfold_validation{arch_suffix}.csv"))
 
-cat(glue("\nWrote tables/kfold_validation.csv ({nrow(kfold_validation)} rows) + cache/datasets/kfold_matched.rds ({nrow(matched)} rows)\n"))
+cat(glue("\nWrote tables/kfold_validation{arch_suffix}.csv ({nrow(kfold_validation)} rows) + cache/datasets/kfold_matched{arch_suffix}.rds ({nrow(matched)} rows)\n"))
 cat("\n=== k-fold skill (robust >=365d) by depth ===\n")
 print(as.data.frame(kfold_validation |> filter(robust) |> group_by(depth) |>
   summarise(n = n(), KGE = round(median(KGE, na.rm = TRUE), 3), r = round(median(r, na.rm = TRUE), 3),

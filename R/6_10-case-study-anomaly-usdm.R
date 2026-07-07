@@ -29,9 +29,27 @@ events = list(
 stopifnot(event %in% names(events))
 kgml_dates = as.Date(events[[event]]$kgml)
 usdm_dates = as.Date(events[[event]]$usdm)
-out_png    = if (event == "2017") "case_study_anomaly_vs_usdm.png" else glue("case_study_anomaly_vs_usdm_{event}.png")
-ens = c(shallow = "/data/ssd3/soil-moisture-ml-inference/ensemble-smoothed-daily-shallow/median",
-        middle  = "/data/ssd4/soil-moisture-ml-inference/ensemble-smoothed-daily-middle/median")
+
+# ---- SMI method (SMI_METHOD=original|varaug) --------------------------------
+# varaug = the ops variance-augmented SMI (ANOMALY-METHOD-variance-augmented.md):
+# MoM Beta on the trailing-30 same-day climatology with v_eff = var(clim) +
+# sigma2_obs (current day's CROSS-FOLD variance), cap +/-3.09. Middle uses the
+# YEAR-FROZEN archive (promoted product); shallow is the as-is PLACEHOLDER until
+# its frozen regen lands. Cached SMI rasters are tagged by method.
+smi_method = Sys.getenv("SMI_METHOD", "original")
+stopifnot(smi_method %in% c("original", "varaug"))
+if (smi_method == "varaug") {
+  ens = c(shallow = "/data/ssd3/soil-moisture-ml-inference/ensemble-smoothed-daily-shallow/median",
+          middle  = "/data/ssd3/soil-moisture-ml-inference/ensemble-smoothed-daily-middle-yearfrozen/median")
+  folds_root = c(shallow = "/data/ssd3/soil-moisture-ml-inference/predictions-smoothed-daily-shallow",
+                 middle  = "/data/ssd3/soil-moisture-ml-inference/predictions-smoothed-daily-middle-yearfrozen")
+  out_png = if (event == "2017") "case_study_anomaly_vs_usdm_varaug.png" else glue("case_study_anomaly_vs_usdm_{event}_varaug.png")
+} else {
+  ens = c(shallow = "/data/ssd3/soil-moisture-ml-inference/ensemble-smoothed-daily-shallow/median",
+          middle  = "/data/ssd4/soil-moisture-ml-inference/ensemble-smoothed-daily-middle/median")
+  folds_root = NULL
+  out_png = if (event == "2017") "case_study_anomaly_vs_usdm.png" else glue("case_study_anomaly_vs_usdm_{event}.png")
+}
 depth_lab = c(shallow = "Soil Moisture Anomaly (0-10 cm)", middle = "Soil Moisture Anomaly (10-50 cm)")
 
 proj_out = "EPSG:5070"   # original maps were rendered in Albers (EPSG:5070); 4326 flattens the N. Plains
@@ -52,16 +70,50 @@ beta_fit_smi = function(x, climatology_length = 30L, return_latest = TRUE) {
   stats::qnorm(pmin(pmax(out, 1e-12), 1 - 1e-12))
 }
 
+# ---- ops variance-augmented SMI (VERBATIM math from v1-ops R/3_3-finalize.R):
+# x = [same-day climatology values (current LAST), sigma_obs^2]. MoM Beta on
+# (mean, var + sigma_obs^2), z capped +/-3.09.
+beta_fit_smi_varaug = function(x, climatology_length = 30L) {
+  x = as.numeric(x); n = length(x)
+  if (n < 2L) return(NA_real_)
+  sigma_obs2 = x[n]
+  clim = x[-n]; clim = clim[is.finite(clim)]
+  if (length(clim) < 3L) return(NA_real_)
+  clim = utils::tail(clim, climatology_length)
+  clim = pmin(pmax(clim, 1e-6), 1 - 1e-6)
+  if (length(unique(clim)) < 3L) return(NA_real_)
+  cur = clim[length(clim)]
+  m = mean(clim); v = stats::var(clim)
+  if (!is.finite(v) || v <= 0) return(NA_real_)
+  if (is.finite(sigma_obs2) && sigma_obs2 > 0) v = v + sigma_obs2
+  t = max(m * (1 - m) / v - 1, 2)
+  cdf = pbeta(min(max(cur, 1e-6), 1 - 1e-6), m * t, (1 - m) * t)
+  z = stats::qnorm(min(max(cdf, 1e-12), 1 - 1e-12))
+  pmin(pmax(z, -3.09), 3.09)
+}
+
 # ---- gridded SMI for one date/depth (30-yr same-day climatology), cached ----
-smi_for_day = function(date0, dir_in, clim_years = 30L, cores = min(16L, max(1L, parallel::detectCores() - 2L))) {
+smi_for_day = function(date0, dir_in, fold_root = NULL, clim_years = 30L,
+                       cores = min(16L, max(1L, parallel::detectCores() - 2L))) {
   yrs = seq(lubridate::year(date0) - (clim_years - 1L), lubridate::year(date0))
   files = file.path(dir_in, sprintf("vwc_%04d-%s.tif", yrs, format(date0, "%m-%d")))
   files = files[file.exists(files)]
   r = rast(files)
   cl = parallel::makeCluster(cores); on.exit(parallel::stopCluster(cl), add = TRUE)
   parallel::clusterEvalQ(cl, library(MASS))
-  parallel::clusterExport(cl, "beta_fit_smi", envir = globalenv())
-  app(r, beta_fit_smi, cores = cl)
+  if (smi_method == "varaug") {
+    # append the current day's CROSS-FOLD variance as the LAST layer
+    ffiles = file.path(fold_root, paste0("fold_", 1:10), sprintf("vwc_%s.tif", date0))
+    ffiles = ffiles[file.exists(ffiles)]
+    stopifnot(length(ffiles) >= 8)
+    var_r = app(rast(ffiles), fun = function(v) stats::var(v, na.rm = TRUE))
+    r = c(r, var_r)
+    parallel::clusterExport(cl, "beta_fit_smi_varaug", envir = globalenv())
+    app(r, beta_fit_smi_varaug, cores = cl)
+  } else {
+    parallel::clusterExport(cl, "beta_fit_smi", envir = globalenv())
+    app(r, beta_fit_smi, cores = cl)
+  }
 }
 
 # ---- binned CONUS map ----
@@ -103,8 +155,11 @@ map_smi = function(r_smi, title, subtitle) {
 kgml_maps = list()
 for (dep in c("shallow", "middle")) for (i in seq_along(kgml_dates)) {
   dt = kgml_dates[i]                                  # [i] keeps Date class ([[ would strip it)
-  tif = glue("{cache_dir}/{dep}_{dt}.tif")
-  r = if (file.exists(tif)) rast(tif) else { x = smi_for_day(dt, ens[[dep]]); writeRaster(x, tif, overwrite = TRUE); x }
+  tag = if (smi_method == "varaug") "_varaug" else ""
+  tif = glue("{cache_dir}/{dep}_{dt}{tag}.tif")
+  r = if (file.exists(tif)) rast(tif) else {
+    x = smi_for_day(dt, ens[[dep]], fold_root = if (is.null(folds_root)) NULL else folds_root[[dep]])
+    writeRaster(x, tif, overwrite = TRUE); x }
   kgml_maps[[glue("{dep}_{dt}")]] = map_smi(r, depth_lab[[dep]], format(dt, "%m-%d-%Y"))
   message(glue("map: {dep} {dt}"))
 }

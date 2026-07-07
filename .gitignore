@@ -1,0 +1,20 @@
+# ---------------------------------------------------------------------------
+# Data & regenerable caches — NOT versioned.
+# All of cache/ is rebuilt by the R/Python pipeline (extraction caches, matched
+# datasets, per-fold climatologies, anomaly rasters, USDM downloads). The code
+# plus the small tables/ and figs/ outputs are sufficient to reproduce it.
+# Large inference grids live on /data/ssd3 and are never in the repo.
+# ---------------------------------------------------------------------------
+cache/
+
+# Large local data artifacts (belt-and-suspenders — these should live on /data,
+# not in git). tif/png are intentionally NOT globbed so figs/ deliverables stay.
+*.rds
+*.nc
+*.parquet
+
+# R / OS cruft
+.Rhistory
+.RData
+.Rproj.user/
+.DS_Store
