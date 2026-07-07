@@ -220,7 +220,7 @@ plot_spi_conus_binned = function(
     scale_fill_manual(
       values = pal,
       drop = FALSE,
-      name = "Standardized\nAnomaly",
+      name = "Soil Moisture\nIndex (SMI)",
       na.translate = FALSE  # = removes NA from legend
     ) +
     labs(title = title, subtitle = subtitle,

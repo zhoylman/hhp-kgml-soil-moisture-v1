@@ -140,7 +140,7 @@ map_smi = function(r_smi, title, subtitle) {
     geom_sf(data = states, fill = NA, color = "grey25", linewidth = 0.2) +
     geom_sf(data = missouri_basin, fill = NA, color = "black", linewidth = 0.4) +
     coord_sf(crs = 5070, expand = FALSE) +
-    scale_fill_manual(values = pal, drop = FALSE, limits = lbls, name = "Standardized\nAnomaly", na.translate = FALSE) +
+    scale_fill_manual(values = pal, drop = FALSE, limits = lbls, name = "Soil Moisture\nIndex (SMI)", na.translate = FALSE) +
     labs(title = title, subtitle = subtitle) +
     theme_minimal(base_size = 11) +
     theme(panel.grid = element_blank(), axis.title = element_blank(), axis.text = element_blank(),
