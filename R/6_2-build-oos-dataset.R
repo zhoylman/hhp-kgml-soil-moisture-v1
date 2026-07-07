@@ -26,8 +26,12 @@ out_ds    = glue("{repo}/cache/datasets"); dir.create(out_ds, showWarnings = FAL
 EXCLUDE_NETWORKS = c("NEON", "OK Mesonet")
 
 ens_roots = c("/data/ssd3/soil-moisture-ml-inference", "/data/ssd4/soil-moisture-ml-inference")
+# ARCH_SUFFIX "-yearfrozen" (default, promoted/served archive) or "" (as-is). The
+# year-freeze materially changes 2023+ predictions (year 2023->2013), so OOS must
+# use the same archive that is served operationally.
+arch_suffix = Sys.getenv("ARCH_SUFFIX", "-yearfrozen")
 resolve_ens = function(dep) {
-  cand = file.path(ens_roots, glue("ensemble-smoothed-daily-{dep}"), "median")
+  cand = file.path(ens_roots, glue("ensemble-smoothed-daily-{dep}{arch_suffix}"), "median")
   hit = cand[dir.exists(cand)]; if (length(hit)) hit[1] else cand[1]
 }
 gen_depth = function(d) dplyr::case_when(d <= 10 ~ "Shallow", d > 10 & d <= 50 ~ "Middle", TRUE ~ NA_character_)
@@ -70,7 +74,7 @@ match_depth = function(depth_flag) {
   ens = extract_at_sites(
     raster_dir = resolve_ens(dep), obs_dates = sort(unique(od$date)),
     site_ids = locs$base, meta_xy = locs |> transmute(site_id = base, longitude, latitude),
-    cache_file = file.path(cache_dir, glue("{dep}_ensemble.rds")), label = glue("OOS ensemble [{dep}]"))
+    cache_file = file.path(cache_dir, glue("{dep}{arch_suffix}_ensemble.rds")), label = glue("OOS ensemble [{dep}{arch_suffix}]"))
 
   smi_mod = ens |> group_by(site_id) |>
     group_modify(~ standardize_doy_beta(transmute(.x, date, value = ml)) |>
