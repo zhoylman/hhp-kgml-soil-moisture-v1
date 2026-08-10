@@ -50,8 +50,15 @@ standardize_doy_beta <- function(df, window = 15L, max_years = 30L, min_n = 31L 
 # 11-class USDM-style drought classes from a standardized anomaly (z), clamped
 # to +/-2. Bin 1 = driest (D4) ... bin 11 = wettest (W4). Returns integer 1..11.
 smi_to_class <- function(z) {
-  z <- pmin(pmax(z, -2), 2)
-  brks <- rev(c(Inf, 1.9999, 1.6, 1.3, 0.8, 0.5, -0.5, -0.8, -1.3, -1.6, -1.9999, -Inf))
+  # Thresholds = exact qnorm(percentile) breakpoints from the NSAEM modified
+  # USDM drought classification schema (30/20/10/5/2 percentile -> D0-D4),
+  # mirrored symmetrically for the wet side (W0-W4). Clamp at +/-3.09 (the
+  # 99.9th-percentile guardrail used elsewhere in this pipeline for capped SMI)
+  # -- wide enough that it never coincides with the +/-2.054 D4/W4 boundary,
+  # so D4/W4 remain reachable (the prior +/-2.0 clamp coincided with the old
+  # rounded +/-2.0 boundary and would make D4/W4 structurally empty here).
+  z <- pmin(pmax(z, -3.09), 3.09)
+  brks <- rev(c(Inf, 2.054, 1.644, 1.281, 0.842, 0.524, -0.524, -0.842, -1.281, -1.644, -2.054, -Inf))
   .bincode(z, breaks = brks, include.lowest = TRUE)
 }
 

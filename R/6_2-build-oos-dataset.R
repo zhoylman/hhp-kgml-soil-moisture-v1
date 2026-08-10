@@ -78,14 +78,14 @@ match_depth = function(depth_flag) {
 
   smi_mod = ens |> group_by(site_id) |>
     group_modify(~ standardize_doy_beta(transmute(.x, date, value = ml)) |>
-                   transmute(date, kgml_smi = pmin(pmax(z, -2), 2))) |> ungroup() |> rename(base = site_id)
+                   transmute(date, kgml_smi = pmin(pmax(z, -3.09), 3.09))) |> ungroup() |> rename(base = site_id)
 
   bind_rows(lapply(unique(od$base), function(b) {
     o  = od |> filter(base == !!b) |> select(network, site_id, date, obs = soil_moisture)
     es = ens |> filter(site_id == !!b) |> select(date, ml)
     mt = inner_join(o, es, by = "date") |> drop_na(obs, ml)
     if (nrow(mt) < 5) return(NULL)
-    osm = standardize_doy_beta(transmute(o, date, value = obs)) |> transmute(date, obs_smi = pmin(pmax(z, -2), 2))
+    osm = standardize_doy_beta(transmute(o, date, value = obs)) |> transmute(date, obs_smi = pmin(pmax(z, -3.09), 3.09))
     mt |>
       left_join(osm, by = "date") |>
       left_join(filter(smi_mod, base == !!b) |> select(date, kgml_smi), by = "date") |>

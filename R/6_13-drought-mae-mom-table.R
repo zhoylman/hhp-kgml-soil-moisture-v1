@@ -2,12 +2,19 @@
 # Title: Manuscript drought-class MAE table (method-of-moments, non-augmented)
 # Description:
 #   Renders the KGML-vs-SPoRT-LIS per-class MAE gt table for the manuscript
-#   using the METHOD-OF-MOMENTS, NON-AUGMENTED SSMI (see Section 2.13: each
-#   site's KGML anomaly comes from a single held-out fold, so the ensemble
-#   variance augmentation of Section 2.12 does not apply; all sources use the
-#   climatological variance alone). Reads the MoM columns produced by 6_12
-#   (drought_class_mae_varaug_{shallow,middle}.csv), both depths.
+#   (SI Table 2) using the METHOD-OF-MOMENTS, NON-AUGMENTED SSMI (see Section
+#   2.13: each site's KGML anomaly comes from a single held-out fold, so the
+#   ensemble variance augmentation of Section 2.12 does not apply; all sources
+#   use the climatological variance alone). Reads the MoM columns produced by
+#   6_12 (drought_class_mae_varaug_{shallow,middle}.csv), both depths.
 #   Style matches 6_5's drought_class_mae figure.
+#
+#   Overall MAE reduction and quadratic-weighted Cohen's kappa (chance-
+#   corrected ORDINAL agreement) are reported in Results prose, not in this
+#   table -- kappa is a property of the full confusion matrix and has no
+#   natural per-class decomposition. See cache/datasets/kfold_matched_varaug_
+#   {shallow,middle}.rds (columns truth_class, cls_mom, cls_sport_mom) to
+#   recompute those summary numbers if needed.
 ##############################################################
 
 suppressPackageStartupMessages({ library(tidyverse); library(glue); library(gt) })

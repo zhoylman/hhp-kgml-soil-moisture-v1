@@ -71,9 +71,9 @@ run_fold = function(fold, depth_flag) {
       mt = dplyr::inner_join(o, es, by = "date") |> tidyr::drop_na(obs, ml)
       if (nrow(mt) < 5) return(NULL)
       osm = standardize_doy_beta(dplyr::transmute(o, date, value = obs)) |>
-        dplyr::transmute(date, obs_smi = pmin(pmax(z, -2), 2))
+        dplyr::transmute(date, obs_smi = pmin(pmax(z, -3.09), 3.09))
       msm = standardize_doy_beta(dplyr::transmute(es, date, value = ml)) |>
-        dplyr::transmute(date, kgml_smi = pmin(pmax(z, -2), 2))
+        dplyr::transmute(date, kgml_smi = pmin(pmax(z, -3.09), 3.09))
       mt |>
         dplyr::left_join(osm, by = "date") |>
         dplyr::left_join(msm, by = "date") |>
@@ -108,7 +108,7 @@ sport_smi = bind_rows(lapply(val_depths, function(depth_flag) {
     filter(site_id %in% unique(matched$site_id[matched$depth == depth_flag])) |> drop_na(sport)
   bind_rows(lapply(unique(sims$site_id), function(s) {
     standardize_doy_beta(filter(sims, site_id == s) |> transmute(date, value = sport)) |>
-      transmute(site_id = s, depth = depth_flag, date, sport_smi = pmin(pmax(z, -2), 2))
+      transmute(site_id = s, depth = depth_flag, date, sport_smi = pmin(pmax(z, -3.09), 3.09))
   }))
 }))
 
@@ -130,7 +130,10 @@ sport_raw = bind_rows(lapply(val_depths, function(depth_flag) {
   obs_sp |> inner_join(sims |> select(site_id, date, sport), by = c("site_id", "date")) |> drop_na(obs, sport) |>
     group_by(site_id) |>
     summarise(KGE_sport = hydroGOF::KGE(sport, obs), r_sport = cor(sport, obs),
-              pbias_sport = hydroGOF::pbias(sport, obs), .groups = "drop") |>
+              pbias_sport = hydroGOF::pbias(sport, obs),
+              RMSE_sport = sqrt(mean((sport - obs)^2, na.rm = TRUE)),
+              MAE_sport  = mean(abs(sport - obs), na.rm = TRUE),
+              .groups = "drop") |>
     mutate(depth = depth_flag)
 }))
 
@@ -140,6 +143,8 @@ kfold_validation = matched |>
   summarise(n_obs = sum(!is.na(obs) & !is.na(ml)),
             KGE = hydroGOF::KGE(ml, obs), r = cor(ml, obs, use = "complete.obs"),
             pbias = hydroGOF::pbias(ml, obs),
+            rmse = sqrt(mean((ml - obs)^2, na.rm = TRUE)),
+            mae  = mean(abs(ml - obs), na.rm = TRUE),
             n_smi = sum(!is.na(obs_smi) & !is.na(kgml_smi)),
             smi_mae = if (sum(!is.na(obs_smi) & !is.na(kgml_smi)) >= 30)
                         mean(abs(kgml_smi - obs_smi), na.rm = TRUE) else NA_real_,
@@ -148,7 +153,8 @@ kfold_validation = matched |>
   left_join(site_meta |> select(site_id, longitude, latitude), by = "site_id") |>
   mutate(robust = n_obs >= 365) |>
   select(network, site_id, depth, longitude, latitude, n_obs, robust,
-         KGE, r, pbias, KGE_sport, r_sport, pbias_sport, smi_mae, n_smi) |>
+         KGE, r, pbias, rmse, mae, KGE_sport, r_sport, pbias_sport, RMSE_sport, MAE_sport,
+         smi_mae, n_smi) |>
   arrange(depth, network, site_id)
 
 readr::write_csv(kfold_validation, glue("{repo}/tables/kfold_validation{arch_suffix}.csv"))
@@ -158,4 +164,13 @@ cat("\n=== k-fold skill (robust >=365d) by depth ===\n")
 print(as.data.frame(kfold_validation |> filter(robust) |> group_by(depth) |>
   summarise(n = n(), KGE = round(median(KGE, na.rm = TRUE), 3), r = round(median(r, na.rm = TRUE), 3),
             abs_pbias = round(median(abs(pbias), na.rm = TRUE), 1),
+            rmse = round(median(rmse, na.rm = TRUE), 4), mae = round(median(mae, na.rm = TRUE), 4),
             smi_mae = round(median(smi_mae, na.rm = TRUE), 3), .groups = "drop")))
+cat("\n=== KGML vs SPoRT-LIS raw VWC error (m3/m3), robust sites, median ===\n")
+print(as.data.frame(kfold_validation |> filter(robust) |> group_by(depth) |>
+  summarise(n = n(),
+            RMSE_KGML = round(median(rmse, na.rm = TRUE), 4), RMSE_SPoRT = round(median(RMSE_sport, na.rm = TRUE), 4),
+            MAE_KGML  = round(median(mae,  na.rm = TRUE), 4), MAE_SPoRT  = round(median(MAE_sport,  na.rm = TRUE), 4),
+            .groups = "drop") |>
+  mutate(RMSE_pct_reduction = round(100*(RMSE_SPoRT-RMSE_KGML)/RMSE_SPoRT, 1),
+         MAE_pct_reduction  = round(100*(MAE_SPoRT-MAE_KGML)/MAE_SPoRT, 1))))
