@@ -1,0 +1,5 @@
+threshold_pctile,threshold_value,pct_conus_unsampled_stations,pct_conus_unsampled_pretrain
+50%,2.2429369037965428,60.84,9.79
+75%,2.8924129101522142,28.7,2.66
+90%,3.7842517541409126,8.29,0.72
+95%,4.390815097472764,3.56,0.27

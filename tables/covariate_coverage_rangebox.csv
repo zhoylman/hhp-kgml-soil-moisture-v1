@@ -1,0 +1,5 @@
+pc_choice,n_pc,reference,area_frac_outside_box
+N90,7,station,0.0036710316272131165
+N90,7,pretrain,1.7717334108171411e-6
+N95,10,station,0.003888954836743625
+N95,10,pretrain,1.7717334108171411e-6

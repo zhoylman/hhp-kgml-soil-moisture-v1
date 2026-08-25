@@ -1,0 +1,94 @@
+variable,n_total,n_na,pct_na,source,flag_high_missing
+X12_alpha_mean,1259483,693934,55.096734136149514,CONUS grid,TRUE
+X0_bd_mean,1259483,692898,55.01447816286524,CONUS grid,TRUE
+X1_clay_mean,1259483,692898,55.01447816286524,CONUS grid,TRUE
+X10_lambda_mean,1259483,692898,55.01447816286524,CONUS grid,TRUE
+X11_hb_mean,1259483,692898,55.01447816286524,CONUS grid,TRUE
+X2_ksat_mean,1259483,692898,55.01447816286524,CONUS grid,TRUE
+X3_n_mean,1259483,692898,55.01447816286524,CONUS grid,TRUE
+X4_om_mean,1259483,692898,55.01447816286524,CONUS grid,TRUE
+X5_ph_mean,1259483,692898,55.01447816286524,CONUS grid,TRUE
+X6_sand_mean,1259483,692898,55.01447816286524,CONUS grid,TRUE
+X7_silt_mean,1259483,692898,55.01447816286524,CONUS grid,TRUE
+X8_theta_r_mean,1259483,692898,55.01447816286524,CONUS grid,TRUE
+X9_theta_s_mean,1259483,692898,55.01447816286524,CONUS grid,TRUE
+X0_ssurgo_awc,1259483,691982,54.9417499084942,CONUS grid,TRUE
+X3_ssurgo_sand,1259483,691982,54.9417499084942,CONUS grid,TRUE
+X1_ssurgo_clay,1259483,691980,54.94159111317898,CONUS grid,TRUE
+X2_ssurgo_ksat,1259483,691978,54.94143231786376,CONUS grid,TRUE
+X0_b1,1259483,689676,54.758658910044836,CONUS grid,TRUE
+ppt,1259483,687737,54.60470685193845,CONUS grid,TRUE
+solclear,1259483,687737,54.60470685193845,CONUS grid,TRUE
+solslope,1259483,687737,54.60470685193845,CONUS grid,TRUE
+soltotal,1259483,687737,54.60470685193845,CONUS grid,TRUE
+soltrans,1259483,687737,54.60470685193845,CONUS grid,TRUE
+tdmean,1259483,687737,54.60470685193845,CONUS grid,TRUE
+tmax,1259483,687737,54.60470685193845,CONUS grid,TRUE
+tmean,1259483,687737,54.60470685193845,CONUS grid,TRUE
+tmin,1259483,687737,54.60470685193845,CONUS grid,TRUE
+vpdmax,1259483,687737,54.60470685193845,CONUS grid,TRUE
+vpdmin,1259483,687737,54.60470685193845,CONUS grid,TRUE
+X1_constant,1259483,687732,54.6043098636504,CONUS grid,TRUE
+X2_elevation,1259483,687727,54.603912875362354,CONUS grid,TRUE
+X12_alpha_mean,20000,111,0.555,"~20,000 pretraining sample",FALSE
+X0_bd_mean,20000,92,0.46,"~20,000 pretraining sample",FALSE
+X1_clay_mean,20000,92,0.46,"~20,000 pretraining sample",FALSE
+X10_lambda_mean,20000,92,0.46,"~20,000 pretraining sample",FALSE
+X11_hb_mean,20000,92,0.46,"~20,000 pretraining sample",FALSE
+X2_ksat_mean,20000,92,0.46,"~20,000 pretraining sample",FALSE
+X3_n_mean,20000,92,0.46,"~20,000 pretraining sample",FALSE
+X4_om_mean,20000,92,0.46,"~20,000 pretraining sample",FALSE
+X5_ph_mean,20000,92,0.46,"~20,000 pretraining sample",FALSE
+X6_sand_mean,20000,92,0.46,"~20,000 pretraining sample",FALSE
+X7_silt_mean,20000,92,0.46,"~20,000 pretraining sample",FALSE
+X8_theta_r_mean,20000,92,0.46,"~20,000 pretraining sample",FALSE
+X9_theta_s_mean,20000,92,0.46,"~20,000 pretraining sample",FALSE
+X0_b1,20000,45,0.225,"~20,000 pretraining sample",FALSE
+X0_ssurgo_awc,20000,42,0.21,"~20,000 pretraining sample",FALSE
+X1_ssurgo_clay,20000,41,0.205,"~20,000 pretraining sample",FALSE
+X2_ssurgo_ksat,20000,41,0.205,"~20,000 pretraining sample",FALSE
+X3_ssurgo_sand,20000,41,0.205,"~20,000 pretraining sample",FALSE
+ppt,734,0,0,734 stations,FALSE
+solclear,734,0,0,734 stations,FALSE
+solslope,734,0,0,734 stations,FALSE
+soltotal,734,0,0,734 stations,FALSE
+soltrans,734,0,0,734 stations,FALSE
+tdmean,734,0,0,734 stations,FALSE
+tmax,734,0,0,734 stations,FALSE
+tmean,734,0,0,734 stations,FALSE
+tmin,734,0,0,734 stations,FALSE
+vpdmax,734,0,0,734 stations,FALSE
+vpdmin,734,0,0,734 stations,FALSE
+X0_b1,734,0,0,734 stations,FALSE
+X1_constant,734,0,0,734 stations,FALSE
+X2_elevation,734,0,0,734 stations,FALSE
+X0_ssurgo_awc,734,0,0,734 stations,FALSE
+X1_ssurgo_clay,734,0,0,734 stations,FALSE
+X2_ssurgo_ksat,734,0,0,734 stations,FALSE
+X3_ssurgo_sand,734,0,0,734 stations,FALSE
+X0_bd_mean,734,0,0,734 stations,FALSE
+X1_clay_mean,734,0,0,734 stations,FALSE
+X10_lambda_mean,734,0,0,734 stations,FALSE
+X11_hb_mean,734,0,0,734 stations,FALSE
+X12_alpha_mean,734,0,0,734 stations,FALSE
+X2_ksat_mean,734,0,0,734 stations,FALSE
+X3_n_mean,734,0,0,734 stations,FALSE
+X4_om_mean,734,0,0,734 stations,FALSE
+X5_ph_mean,734,0,0,734 stations,FALSE
+X6_sand_mean,734,0,0,734 stations,FALSE
+X7_silt_mean,734,0,0,734 stations,FALSE
+X8_theta_r_mean,734,0,0,734 stations,FALSE
+X9_theta_s_mean,734,0,0,734 stations,FALSE
+ppt,20000,0,0,"~20,000 pretraining sample",FALSE
+solclear,20000,0,0,"~20,000 pretraining sample",FALSE
+solslope,20000,0,0,"~20,000 pretraining sample",FALSE
+soltotal,20000,0,0,"~20,000 pretraining sample",FALSE
+soltrans,20000,0,0,"~20,000 pretraining sample",FALSE
+tdmean,20000,0,0,"~20,000 pretraining sample",FALSE
+tmax,20000,0,0,"~20,000 pretraining sample",FALSE
+tmean,20000,0,0,"~20,000 pretraining sample",FALSE
+tmin,20000,0,0,"~20,000 pretraining sample",FALSE
+vpdmax,20000,0,0,"~20,000 pretraining sample",FALSE
+vpdmin,20000,0,0,"~20,000 pretraining sample",FALSE
+X1_constant,20000,0,0,"~20,000 pretraining sample",FALSE
+X2_elevation,20000,0,0,"~20,000 pretraining sample",FALSE

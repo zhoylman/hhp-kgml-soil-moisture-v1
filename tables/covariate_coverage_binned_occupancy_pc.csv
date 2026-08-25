@@ -1,0 +1,9 @@
+n_pc,n_bins_per_axis,role,reference,n_bins_total_possible,n_bins_occupied_by_CONUS,n_bins_occupied_by_ref,area_frac_occupied_bins_with_zero_ref
+3,4,primary,station,64,64,61,0.008757678249669129
+3,4,primary,pretrain,64,64,64,0
+5,4,primary,station,1024,980,306,0.48212409575156046
+5,4,primary,pretrain,1024,980,934,0.0031359681371463397
+5,3,sensitivity,station,243,243,166,0.1661212680650368
+5,3,sensitivity,pretrain,243,243,243,0
+5,5,sensitivity,station,3125,2596,413,0.7014629202773117
+5,5,sensitivity,pretrain,3125,2596,2217,0.021384822268562895

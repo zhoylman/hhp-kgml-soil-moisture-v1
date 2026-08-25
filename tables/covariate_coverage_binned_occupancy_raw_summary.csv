@@ -1,0 +1,11 @@
+variable,reference,area_frac_occupied_bins_with_zero_ref
+X0_ssurgo_awc,pretrain,0
+X0_ssurgo_awc,station,0
+X3_ssurgo_sand,pretrain,0
+X3_ssurgo_sand,station,0
+ppt,pretrain,0
+ppt,station,0
+tmean,pretrain,0
+tmean,station,0
+vpdmax,pretrain,0
+vpdmax,station,0

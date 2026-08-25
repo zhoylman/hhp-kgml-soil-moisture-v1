@@ -1,0 +1,18 @@
+metric,choice,station_coverage_gap,pretraining_coverage_gap
+Nearest-neighbor distance (frac. area unsampled),"Euclidean, N_PC=7 (N90)",0.06158190989318219,0.031111638693949
+Nearest-neighbor distance (frac. area unsampled),"Mahalanobis, N_PC=7 (N90)",0.046421187096819916,0.031549256846420834
+Nearest-neighbor distance (frac. area unsampled),"Euclidean, N_PC=10 (N95)",0.03742964003692292,0.029628697829095052
+Nearest-neighbor distance (frac. area unsampled),"Mahalanobis, N_PC=10 (N95)",0.03993309934640755,0.025803525395140844
+Range-box containment (frac. area outside station/pretrain box),N_PC=7 (N90),0.0036710316272131165,1.7717334108171411e-6
+Range-box containment (frac. area outside station/pretrain box),N_PC=10 (N95),0.003888954836743625,1.7717334108171411e-6
+"Binned occupancy, PC space (frac. occupied-CONUS-area in zero-reference bins)","N_PC=3, bins/axis=4 (primary)",0.008757678249669129,0
+"Binned occupancy, PC space (frac. occupied-CONUS-area in zero-reference bins)","N_PC=5, bins/axis=4 (primary)",0.48212409575156046,0.0031359681371463397
+"Binned occupancy, PC space (frac. occupied-CONUS-area in zero-reference bins)","N_PC=5, bins/axis=3 (sensitivity)",0.1661212680650368,0
+"Binned occupancy, PC space (frac. occupied-CONUS-area in zero-reference bins)","N_PC=5, bins/axis=5 (sensitivity)",0.7014629202773117,0.021384822268562895
+"Binned occupancy, raw axis (deciles; frac. area in zero-reference bins)",X0_ssurgo_awc,0,0
+"Binned occupancy, raw axis (deciles; frac. area in zero-reference bins)",X3_ssurgo_sand,0,0
+"Binned occupancy, raw axis (deciles; frac. area in zero-reference bins)",ppt,0,0
+"Binned occupancy, raw axis (deciles; frac. area in zero-reference bins)",tmean,0,0
+"Binned occupancy, raw axis (deciles; frac. area in zero-reference bins)",vpdmax,0,0
+"Density ratio, PC1-PC2 (frac. CONUS mass where reference density ~ 0)","PC1-PC2, threshold=1% of ref max",0.014294081538333782,2.4428548299608943e-5
+"Punchline: of the area unsampled by stations (Euclidean NN, N95), frac. that pretraining DOES cover","Euclidean, N_PC=10 (N95)",NA,0.5757360598314872

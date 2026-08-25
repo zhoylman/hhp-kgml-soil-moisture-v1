@@ -101,10 +101,26 @@ def normalize(df, cols, mn, mx):
         out[c] = (out[c] - mn[c]) / (mx[c] - mn[c])
     return out
 
+# ---- forcing source selection --------------------------------------------
+# "raster" (default, FIXED): per-site daily 61-band feature series extracted
+#   directly from historical-forcing-data-normalized/*.tif at each site's
+#   pixel (nearest-neighbor, matching sm_eval_utils.R's extract_at_sites()).
+#   Gap-free by construction (every day has a raster) and ALREADY normalized
+#   -- no rolling-sum computation or min-max scaling needed downstream.
+# "csv" (legacy): observational-sites-seq-data.csv, which has real per-site
+#   gaps -> make_windows()'s contiguity check silently drops windows, causing
+#   Table 1 (canonical gridded, n=727 shallow) vs the old point-based ablation
+#   (n=685) to diverge. Kept only for side-by-side comparison.
+FORCING_SOURCE = os.environ.get("FORCING_SOURCE", "raster")
+RASTER_FORCING_DIR = f"{BASE}/seq-data/site-forcing-from-raster"
+
 # ---- load raw daily seq-data (wide: var, time, site1, site2, ...) once -----
-print("[load] observational-sites-seq-data.csv ...", flush=True)
-SEQ_RAW = pd.read_csv(f"{BASE}/seq-data/observational-sites-seq-data.csv", low_memory=False)
-SEQ_RAW["time"] = pd.to_datetime(SEQ_RAW["time"])
+# (only needed for the legacy "csv" path; skip the load entirely otherwise --
+#  it's a large file and the raster path never touches it)
+if FORCING_SOURCE == "csv":
+    print("[load] observational-sites-seq-data.csv ...", flush=True)
+    SEQ_RAW = pd.read_csv(f"{BASE}/seq-data/observational-sites-seq-data.csv", low_memory=False)
+    SEQ_RAW["time"] = pd.to_datetime(SEQ_RAW["time"])
 
 STATIC_RAW = pd.read_csv(f"{BASE}/static-data/all-sites-static-data.csv").drop(columns=["network"])
 META = pd.read_csv(f"{BASE}/observations/final-soil-moisture-data-generalized-meta.csv",
@@ -119,7 +135,23 @@ ROLL_SPECS = [  # (window_days, precip_col, pet_col, def_col_or_None)
     (730, "precip_roll_sum_long_long",   "pet_roll_sum_long_long",   "def_long_long"),
 ]
 
+def build_site_daily_from_raster(site_id):
+    """Gap-free, ALREADY-NORMALIZED daily feature frame straight from the
+    canonical raster archive (see R/6_17-extract-site-forcing-from-rasters.R).
+    No rolling sums / normalization needed -- both are already baked in."""
+    path = f"{RASTER_FORCING_DIR}/{site_id}.csv"
+    if not os.path.exists(path):
+        return None
+    d = pd.read_csv(path)
+    d["time"] = pd.to_datetime(d["time"])
+    return d.sort_values("time").dropna().reset_index(drop=True)
+
 def build_site_daily(site_id):
+    if FORCING_SOURCE == "raster":
+        return build_site_daily_from_raster(site_id)
+    return build_site_daily_csv(site_id)
+
+def build_site_daily_csv(site_id):
     """Raw daily seq-data -> full feature frame (unnormalized) for one site."""
     if site_id not in SEQ_RAW.columns:
         return None
@@ -146,6 +178,8 @@ def build_site_daily(site_id):
     return d.dropna().reset_index(drop=True)
 
 def normalize_site(d):
+    if FORCING_SOURCE == "raster":
+        return d   # already normalized in the raster archive -- no-op
     seq_cols = [c for c in FEATURE_ORDER if c not in STATIC_COLS and c != "circular_yday"]
     d = normalize(d, seq_cols, seq_mn, seq_mx)
     d = normalize(d, STATIC_COLS, stat_mn, stat_mx)
@@ -158,7 +192,10 @@ def make_windows(d, stride=STRIDE_DAYS):
     n = len(d)
     if n <= 200:
         return []
-    centers_idx = np.arange(90, n - 90, stride)
+    # R's `seq(90, N-90, by=30)` indexes a 1-based vector; the 0-based equivalent
+    # is 89, not 90 (off-by-one previously shifted every window's end date by a
+    # full 30-day stitching block relative to the canonical gridded pipeline).
+    centers_idx = np.arange(89, n - 90, stride)
     out = []
     feat = d[FEATURE_ORDER].to_numpy(dtype=np.float32)
     for c in centers_idx:

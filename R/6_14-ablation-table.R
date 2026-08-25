@@ -35,11 +35,13 @@ both = bind_rows(
   })
 )
 
-# Same sign convention as R/6_6 (Tables 1 & 2): pct(k,s) = (k-s)/abs(s)*100,
+# Absolute differences, not % improvement -- KGE and r are not ratio-scale
+# (arbitrary zero point, unbounded below), so relative change has no stable
+# interpretation. |% Bias| already IS a percentage, so its difference is
+# reported in percentage points rather than a relative "% of %" change.
 # k = model of interest (pretrained), s = baseline (no-pretrain). Negative
-# bias_imp means pretrained has LOWER |%bias| (i.e. improved), matching the
-# established convention (e.g. Table 2's "-40%" for KGML vs SPoRT-LIS bias).
-pct = function(k, s) round((k - s) / abs(s) * 100)
+# bias_diff means pretrained has LOWER |%bias| (i.e. improved).
+diff = function(k, s, digits) round(k - s, digits)
 
 A = both |>
   group_by(depth) |>
@@ -49,25 +51,26 @@ A = both |>
             bias_pre = median(abs(pbias_pre), na.rm=TRUE), bias_nop = median(abs(pbias_nop), na.rm=TRUE),
             .groups = "drop") |>
   mutate(depth = factor(depth, levels = c("Shallow","Middle")),
-         KGE_imp  = pct(KGE_pre, KGE_nop),
-         r_imp    = pct(r_pre, r_nop),
-         bias_imp = pct(bias_pre, bias_nop)) |>   # negative = pretrained has LOWER bias (improved)
+         KGE_diff  = diff(KGE_pre, KGE_nop, 2),
+         r_diff    = diff(r_pre, r_nop, 2),
+         bias_diff = diff(bias_pre, bias_nop, 1)) |>   # negative = pretrained has LOWER bias (improved)
   arrange(depth)
 write_csv(A, glue("{tables_dir}/ablation_nopretrain_pointeval.csv"))
 
 g = A |> gt(rowname_col = "depth") |>
   tab_header(title = md("**Effect of SPoRT-LIS Pretraining on KGML Skill**"),
              subtitle = "Point-based center-keep evaluation · identical recipe, pretrained vs. random-init") |>
-  tab_spanner("KGE", c(KGE_pre, KGE_nop, KGE_imp)) |>
-  tab_spanner("Pearson r", c(r_pre, r_nop, r_imp)) |>
-  tab_spanner(md("|% Bias|"), c(bias_pre, bias_nop, bias_imp)) |>
-  cols_label(n = "Sites", KGE_pre = "Pretrained", KGE_nop = "No-Pretrain", KGE_imp = "% Improvement",
-             r_pre = "Pretrained", r_nop = "No-Pretrain", r_imp = "% Improvement",
-             bias_pre = "Pretrained", bias_nop = "No-Pretrain", bias_imp = "% Improvement") |>
+  tab_spanner("KGE", c(KGE_pre, KGE_nop, KGE_diff)) |>
+  tab_spanner("Pearson r", c(r_pre, r_nop, r_diff)) |>
+  tab_spanner(md("|% Bias|"), c(bias_pre, bias_nop, bias_diff)) |>
+  cols_label(n = "Sites", KGE_pre = "Pretrained", KGE_nop = "No-Pretrain", KGE_diff = md("Δ"),
+             r_pre = "Pretrained", r_nop = "No-Pretrain", r_diff = md("Δ"),
+             bias_pre = "Pretrained", bias_nop = "No-Pretrain", bias_diff = md("Δ (pp)")) |>
   fmt_number(c(KGE_pre, KGE_nop, r_pre, r_nop), decimals = 2) |>
   fmt_number(c(bias_pre, bias_nop), decimals = 1) |>
-  fmt_number(c(KGE_imp, r_imp, bias_imp), decimals = 0, force_sign = TRUE, pattern = "{x}%") |>
-  tab_style(cell_text(weight = "bold", color = "#4B0092"), cells_body(columns = c(KGE_imp, r_imp, bias_imp))) |>
+  fmt_number(c(KGE_diff, r_diff), decimals = 2, force_sign = TRUE) |>
+  fmt_number(bias_diff, decimals = 1, force_sign = TRUE) |>
+  tab_style(cell_text(weight = "bold", color = "#4B0092"), cells_body(columns = c(KGE_diff, r_diff, bias_diff))) |>
   tab_style(cell_text(weight = "bold"), cells_stub()) |>
   opt_table_outline() |>
   tab_options(table.font.size = px(13), data_row.padding = px(5), column_labels.font.weight = "bold")

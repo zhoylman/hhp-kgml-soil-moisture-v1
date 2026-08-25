@@ -42,7 +42,7 @@ write_csv(per_fold, glue("{tables_dir}/networksize_per_fold_medians.csv"))
 # ---- aggregate across the 10 fold replicates at each size (for plotting + table) ----
 agg = per_fold |>
   group_by(depth, size) |>
-  summarise(n_folds = n(), median = median(median_kge, na.rm = TRUE),
+  summarise(n_folds = n(), mean = mean(median_kge, na.rm = TRUE), median = median(median_kge, na.rm = TRUE),
             p25 = quantile(median_kge, 0.25, na.rm = TRUE),
             p75 = quantile(median_kge, 0.75, na.rm = TRUE),
             sd = sd(median_kge, na.rm = TRUE), .groups = "drop") |>
@@ -105,13 +105,23 @@ sport_kge_for = function(dep) {
 DEPTH_LEVELS = c("shallow", "middle")
 DEPTH_NAMES  = c(shallow = "Shallow Soil Moisture (0-10 cm)", middle = "Mid-depth Soil Moisture (10-50 cm)")
 
+# ---- final production k-fold model (Table 1 headline: all sites, pooled across folds) ----
+kfold_headline = read_csv(glue("{tables_dir}/summary_kfold.csv"), show_col_types = FALSE) |>
+  filter(region == "All sites") |>
+  transmute(dep = tolower(depth), n, KGE_kgml)
+
 make_panel = function(dep, show_sport = TRUE) {
   d       = per_fold |> filter(depth == dep)
   d_agg   = agg |> filter(depth == dep)
+  final   = kfold_headline |> filter(dep == !!dep)
 
   base = ggplot(d, aes(x = size, y = median_kge)) +
-    geom_smooth(method = "lm", formula = y ~ x) +
-    geom_point(data = d_agg, aes(x = size, y = median), size = 3, color = "#341539")
+    geom_smooth(method = "lm", formula = y ~ x, fullrange = TRUE) +
+    geom_point(data = d_agg, aes(x = size, y = mean), size = 3, color = "#341539") +
+    geom_point(data = final, aes(x = n, y = KGE_kgml), size = 4, shape = 18, color = "#D55E00") +
+    annotate("text", x = final$n, y = final$KGE_kgml, label = glue("Full k-fold model\n(n={final$n})"),
+             color = "#D55E00", hjust = 1.05, vjust = -0.3, size = 3.6, fontface = "bold") +
+    coord_cartesian(xlim = c(min(d$size), max(kfold_headline$n) * 1.02))
 
   if (show_sport) {
     sport_kge = sport_kge_for(dep)
@@ -123,7 +133,7 @@ make_panel = function(dep, show_sport = TRUE) {
   }
 
   base +
-    labs(title = DEPTH_NAMES[[dep]], x = "Number of Training Sites", y = "Median KGE") +
+    labs(title = DEPTH_NAMES[[dep]], x = "Number of Training Sites", y = "Mean KGE (across folds)") +
     theme_bw(base_size = 15) +
     theme(plot.title = element_text(face = "bold", hjust = 0.5),
           axis.title = element_text(face = "bold"), axis.text = element_text(color = "black"))
