@@ -41,7 +41,10 @@ both = bind_rows(
 # reported in percentage points rather than a relative "% of %" change.
 # k = model of interest (pretrained), s = baseline (no-pretrain). Negative
 # bias_diff means pretrained has LOWER |%bias| (i.e. improved).
-diff = function(k, s, digits) round(k - s, digits)
+# Round EACH side to its display precision before subtracting, so the delta
+# always matches what you'd get subtracting the two rounded numbers shown in
+# the table.
+diff = function(k, s, digits) round(round(k, digits) - round(s, digits), digits)
 
 A = both |>
   group_by(depth) |>

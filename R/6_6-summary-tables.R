@@ -16,7 +16,11 @@ tables_dir = glue("{repo}/tables"); figs_dir = glue("{repo}/figs")
 # (arbitrary zero point, unbounded below), so relative change has no stable
 # interpretation. |% Bias| already IS a percentage, so its difference is
 # reported in percentage points rather than a relative "% of %" change.
-diff = function(k, s, digits) round(k - s, digits)
+# Round EACH side to its display precision before subtracting, so the delta
+# always matches what you'd get subtracting the two rounded numbers shown in
+# the table (otherwise e.g. 0.50 - 0.17 could show as "0.32" instead of the
+# expected "0.33" because the unrounded difference rounds differently).
+diff = function(k, s, digits) round(round(k, digits) - round(s, digits), digits)
 
 kf  = read_csv(glue("{tables_dir}/kfold_validation.csv"), show_col_types = FALSE) |> filter(robust)
 oos = read_csv(glue("{tables_dir}/oos_validation.csv"),   show_col_types = FALSE) |> filter(robust)
