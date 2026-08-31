@@ -33,20 +33,21 @@ usdm_dates = as.Date(events[[event]]$usdm)
 # ---- SMI method (SMI_METHOD=original|varaug) --------------------------------
 # varaug = the ops variance-augmented SMI (ANOMALY-METHOD-variance-augmented.md):
 # MoM Beta on the trailing-30 same-day climatology with v_eff = var(clim) +
-# sigma2_obs (current day's CROSS-FOLD variance), cap +/-3.09. Middle uses the
-# YEAR-FROZEN archive (promoted product); shallow is the as-is PLACEHOLDER until
-# its frozen regen lands. Cached SMI rasters are tagged by method.
+# sigma2_obs (current day's CROSS-FOLD variance), cap +/-3.09. Both depths now
+# use the YEAR-FROZEN archive (both regens completed and were confirmed
+# complete 1981-2026; the shallow "as-is PLACEHOLDER" this used to fall back
+# to is stale and must not be used). Cached SMI rasters are tagged by method.
 smi_method = Sys.getenv("SMI_METHOD", "original")
 stopifnot(smi_method %in% c("original", "varaug"))
 if (smi_method == "varaug") {
-  ens = c(shallow = "/data/ssd3/soil-moisture-ml-inference/ensemble-smoothed-daily-shallow/median",
+  ens = c(shallow = "/data/ssd3/soil-moisture-ml-inference/ensemble-smoothed-daily-shallow-yearfrozen/median",
           middle  = "/data/ssd3/soil-moisture-ml-inference/ensemble-smoothed-daily-middle-yearfrozen/median")
-  folds_root = c(shallow = "/data/ssd3/soil-moisture-ml-inference/predictions-smoothed-daily-shallow",
+  folds_root = c(shallow = "/data/ssd3/soil-moisture-ml-inference/predictions-smoothed-daily-shallow-yearfrozen",
                  middle  = "/data/ssd3/soil-moisture-ml-inference/predictions-smoothed-daily-middle-yearfrozen")
-  out_png = if (event == "2017") "case_study_anomaly_vs_usdm_varaug.png" else glue("case_study_anomaly_vs_usdm_{event}_varaug.png")
+  out_png = if (event == "2017") "case_study_anomaly_vs_usdm_augmented_variance.png" else glue("case_study_anomaly_vs_usdm_{event}_augmented_variance.png")
 } else {
-  ens = c(shallow = "/data/ssd3/soil-moisture-ml-inference/ensemble-smoothed-daily-shallow/median",
-          middle  = "/data/ssd4/soil-moisture-ml-inference/ensemble-smoothed-daily-middle/median")
+  ens = c(shallow = "/data/ssd3/soil-moisture-ml-inference/ensemble-smoothed-daily-shallow-yearfrozen/median",
+          middle  = "/data/ssd3/soil-moisture-ml-inference/ensemble-smoothed-daily-middle-yearfrozen/median")
   folds_root = NULL
   out_png = if (event == "2017") "case_study_anomaly_vs_usdm.png" else glue("case_study_anomaly_vs_usdm_{event}.png")
 }
@@ -56,6 +57,12 @@ proj_out = "EPSG:5070"   # original maps were rendered in Albers (EPSG:5070); 43
 missouri_basin = sf::read_sf("~/temp/WBD_10_HU2_Shape/Shape/WBDHU2.shp") |> st_transform(proj_out) |> select(-name)
 
 # ---- beta-fit SMI (per pixel): beta CDF of the value vs its climatology -> qnorm ----
+# Pure method-of-moments (matches beta_fit_smi_varaug below and the manuscript's
+# documented method, Section 2.14/Eq. 3-5) -- NOT MLE-refined. The previous
+# version used MoM only as a starting guess for MASS::fitdistr's MLE
+# optimization, which is a genuinely different fit and made this function
+# incomparable to beta_fit_smi_varaug (violates the variance-can-only-widen
+# guarantee: an MLE fit can push the CDF either direction relative to pure MoM).
 beta_fit_smi = function(x, climatology_length = 30L, return_latest = TRUE) {
   x = as.numeric(x); x = x[is.finite(x)]
   if (!length(x)) return(NA_real_)
@@ -63,11 +70,11 @@ beta_fit_smi = function(x, climatology_length = 30L, return_latest = TRUE) {
   x = pmin(pmax(x, 1e-6), 1 - 1e-6)
   if (length(unique(x)) < 3L) return(NA_real_)
   m = mean(x); v = stats::var(x); if (!is.finite(v) || v <= 0) return(NA_real_)
-  t = max(m * (1 - m) / v - 1, 2); a0 = m * t; b0 = (1 - m) * t
-  fit = try(MASS::fitdistr(x, function(x, a, b) dbeta(x, a, b, log = TRUE), start = list(a = a0, b = b0)), silent = TRUE)
-  Fvals = if (!inherits(fit, "try-error")) pbeta(x, fit$estimate[["a"]], fit$estimate[["b"]]) else stats::ecdf(x)(x)
+  t = max(m * (1 - m) / v - 1, 2); a = m * t; b = (1 - m) * t
+  Fvals = pbeta(x, a, b)
   out = if (return_latest) utils::tail(Fvals, 1L) else Fvals
-  stats::qnorm(pmin(pmax(out, 1e-12), 1 - 1e-12))
+  z = stats::qnorm(pmin(pmax(out, 1e-12), 1 - 1e-12))
+  pmin(pmax(z, -3.09), 3.09)   # same guardrail clamp used everywhere else (sm_eval_utils.R, beta_fit_smi_varaug)
 }
 
 # ---- ops variance-augmented SMI (VERBATIM math from v1-ops R/3_3-finalize.R):
@@ -117,9 +124,12 @@ smi_for_day = function(date0, dir_in, fold_root = NULL, clim_years = 30L,
 }
 
 # ---- binned CONUS map ----
-brks = c(-Inf, -2, -1.6, -1.3, -0.8, -0.5, 0.5, 0.8, 1.3, 1.6, 2, Inf)
-lbls = c("< -2 (D4)","-2 – -1.6 (D3)","-1.6 – -1.3 (D2)","-1.3 – -0.8 (D1)","-0.8 – -0.5 (D0)",
-         "-0.5 – 0.5","0.5 – 0.8","0.8 – 1.3","1.3 – 1.6","1.6 – 2","> 2")
+# NASEM exact percentile-based thresholds (30th/20th/10th/5th/2nd pctile of a
+# standard normal), matching sm_eval_utils.R's smi_to_class() -- NOT the old
+# rounded +-0.5/0.8/1.3/1.6/2.0 values.
+brks = c(-Inf, -2.054, -1.644, -1.281, -0.842, -0.524, 0.524, 0.842, 1.281, 1.644, 2.054, Inf)
+lbls = c("< -2.054 (D4)","-2.054 – -1.644 (D3)","-1.644 – -1.281 (D2)","-1.281 – -0.842 (D1)","-0.842 – -0.524 (D0)",
+         "-0.524 – 0.524","0.524 – 0.842","0.842 – 1.281","1.281 – 1.644","1.644 – 2.054","> 2.054")
 pal = setNames(c("#730000","#E60000","#FFAA00","#FCD37F","#FFFF00","#FFFFFF",
                  "#82FCF9","#32E1FA","#325CFE","#4030E3","#303B83"), lbls)
 states = st_read("https://eric.clst.org/assets/wiki/uploads/Stuff/gz_2010_us_040_00_20m.json", quiet = TRUE) |>

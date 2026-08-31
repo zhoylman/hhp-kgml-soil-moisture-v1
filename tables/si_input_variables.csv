@@ -1,0 +1,61 @@
+category,variable,description,source
+Dynamic meteorological,pr,Precipitation,gridMET
+Dynamic meteorological,tmmx,Maximum air temperature,gridMET
+Dynamic meteorological,tmmn,Minimum air temperature,gridMET
+Dynamic meteorological,vpd,Vapor pressure deficit,gridMET
+Dynamic meteorological,srad,Downward shortwave radiation,gridMET
+Dynamic meteorological,pet,Potential evapotranspiration,gridMET
+Dynamic meteorological,fm100,100-hour dead fuel moisture,gridMET
+Dynamic meteorological,fm1000,1000-hour dead fuel moisture,gridMET
+Dynamic meteorological,bi,Burning index (NFDRS),gridMET
+Rolling accumulation (antecedent moisture),precip_roll_sum_short_short,7-day precipitation sum,Derived (gridMET)
+Rolling accumulation (antecedent moisture),pet_roll_sum_short_short,7-day PET sum,Derived (gridMET)
+Rolling accumulation (antecedent moisture),precip_roll_sum_short,15-day precipitation sum,Derived (gridMET)
+Rolling accumulation (antecedent moisture),pet_roll_sum_short,15-day PET sum,Derived (gridMET)
+Rolling accumulation (antecedent moisture),precip_roll_sum,30-day precipitation sum,Derived (gridMET)
+Rolling accumulation (antecedent moisture),pet_roll_sum,30-day PET sum,Derived (gridMET)
+Rolling accumulation (antecedent moisture),precip_roll_sum_mid,60-day precipitation sum,Derived (gridMET)
+Rolling accumulation (antecedent moisture),pet_roll_sum_mid,60-day PET sum,Derived (gridMET)
+Rolling accumulation (antecedent moisture),precip_roll_sum_long,365-day precipitation sum,Derived (gridMET)
+Rolling accumulation (antecedent moisture),pet_roll_sum_long,365-day PET sum,Derived (gridMET)
+Rolling accumulation (antecedent moisture),precip_roll_sum_long_long,730-day precipitation sum,Derived (gridMET)
+Rolling accumulation (antecedent moisture),pet_roll_sum_long_long,730-day PET sum,Derived (gridMET)
+Climatic water balance (P − PET),def_short,15-day water balance,Derived (gridMET)
+Climatic water balance (P − PET),def,30-day water balance,Derived (gridMET)
+Climatic water balance (P − PET),def_mid,60-day water balance,Derived (gridMET)
+Climatic water balance (P − PET),def_long,365-day water balance,Derived (gridMET)
+Climatic water balance (P − PET),def_long_long,730-day water balance,Derived (gridMET)
+PRISM 1991-2020 climate normals,ppt,Mean precipitation,PRISM
+PRISM 1991-2020 climate normals,tmax,Maximum air temperature,PRISM
+PRISM 1991-2020 climate normals,tmean,Mean air temperature,PRISM
+PRISM 1991-2020 climate normals,tmin,Minimum air temperature,PRISM
+PRISM 1991-2020 climate normals,tdmean,Mean dew-point temperature,PRISM
+PRISM 1991-2020 climate normals,vpdmax,Maximum vapor pressure deficit,PRISM
+PRISM 1991-2020 climate normals,vpdmin,Minimum vapor pressure deficit,PRISM
+PRISM 1991-2020 climate normals,solclear,Clear-sky solar radiation,PRISM
+PRISM 1991-2020 climate normals,solslope,Slope-corrected solar radiation,PRISM
+PRISM 1991-2020 climate normals,soltotal,Total solar radiation,PRISM
+PRISM 1991-2020 climate normals,soltrans,Atmospheric transmittance,PRISM
+Terrain,X2_elevation,Elevation,NED
+Terrain,X0_b1,Topographic wetness index,Hoylman (2021)
+Terrain,X1_constant,Topographic diversity / ruggedness,Theobald et al. (2015)
+SSURGO soil (0-152 cm depth-weighted),X0_ssurgo_awc,Available water capacity,SSURGO
+SSURGO soil (0-152 cm depth-weighted),X1_ssurgo_clay,Clay content,SSURGO
+SSURGO soil (0-152 cm depth-weighted),X2_ssurgo_ksat,Saturated hydraulic conductivity,SSURGO
+SSURGO soil (0-152 cm depth-weighted),X3_ssurgo_sand,Sand content,SSURGO
+POLARIS soil properties,X0_bd_mean,Bulk density,POLARIS
+POLARIS soil properties,X6_sand_mean,Sand fraction,POLARIS
+POLARIS soil properties,X7_silt_mean,Silt fraction,POLARIS
+POLARIS soil properties,X1_clay_mean,Clay fraction,POLARIS
+POLARIS soil properties,X5_ph_mean,pH,POLARIS
+POLARIS soil properties,X4_om_mean,Organic matter content,POLARIS
+POLARIS soil properties,X2_ksat_mean,Saturated hydraulic conductivity,POLARIS
+POLARIS soil properties,X8_theta_r_mean,Van Genuchten residual water content (θr),POLARIS
+POLARIS soil properties,X9_theta_s_mean,Van Genuchten saturated water content (θs),POLARIS
+POLARIS soil properties,X12_alpha_mean,Van Genuchten shape parameter (α),POLARIS
+POLARIS soil properties,X3_n_mean,Van Genuchten shape parameter (n),POLARIS
+POLARIS soil properties,X10_lambda_mean,Brooks-Corey pore-size distribution index,POLARIS
+POLARIS soil properties,X11_hb_mean,Brooks-Corey air-entry (bubbling) pressure,POLARIS
+Positional / seasonal,latitude,Station/grid-cell latitude,Site metadata
+Positional / seasonal,longitude,Station/grid-cell longitude,Site metadata
+Positional / seasonal,circular_yday,Normalized sinusoidal day-of-year (Eq. 1),Derived

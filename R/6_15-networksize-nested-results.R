@@ -133,9 +133,9 @@ make_panel = function(dep, show_sport = TRUE) {
   }
 
   base +
-    labs(title = DEPTH_NAMES[[dep]], x = "Number of Training Sites", y = "Mean KGE (across folds)") +
+    labs(title = DEPTH_NAMES[[dep]], x = "Number of Training Sites", y = "Median KGE") +
     theme_bw(base_size = 15) +
-    theme(plot.title = element_text(face = "bold", hjust = 0.5),
+    theme(plot.title = element_text(face = "bold", hjust = 0.5, size = 15),
           axis.title = element_text(face = "bold"), axis.text = element_text(color = "black"))
 }
 
@@ -143,7 +143,7 @@ plots = list(make_panel("shallow", show_sport = FALSE), make_panel("middle", sho
 combined = (plots[[1]] | plots[[2]]) +
   patchwork::plot_annotation(title = "Out-of-Sample KGE vs. Number of Training Sites",
                               tag_levels = "a",
-                              theme = theme(plot.title = element_text(face = "bold", hjust = 0.5, size = 17)))
+                              theme = theme(plot.title = element_text(face = "bold", hjust = 0.5, size = 19)))
 ggsave(glue("{figs_dir}/networksize_nested_linear_vs_saturating.png"), combined, width = 13, height = 5.5, dpi = 300, bg = "white")
 cat(glue("\nWrote figs/networksize_nested_linear_vs_saturating.png\n"))
 cat(glue("Wrote tables/networksize_summary.csv, networksize_per_fold_medians.csv, networksize_model_comparison.csv\n"))
