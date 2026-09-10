@@ -91,7 +91,7 @@ map_theme = theme_minimal(base_size = 12) +
         legend.title = element_text(hjust = 0.5))
 vwc_scale = scale_fill_viridis_c(
   name = expression("Mean VWC (m"^3*" m"^-3*")"),
-  option = "viridis", direction = 1, limits = vwc_lims, oob = scales::squish,
+  option = "turbo", direction = -1, limits = vwc_lims, oob = scales::squish,
   guide = guide_colorbar(barwidth = 14, barheight = 0.5))
 
 p = ggplot(df) +

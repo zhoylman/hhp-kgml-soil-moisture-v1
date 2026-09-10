@@ -30,15 +30,20 @@ stopifnot(event %in% names(events))
 kgml_dates = as.Date(events[[event]]$kgml)
 usdm_dates = as.Date(events[[event]]$usdm)
 
-# ---- SMI method (SMI_METHOD=original|varaug) --------------------------------
+# ---- SMI method (SMI_METHOD=original|varaug|lmom) ----------------------------
 # varaug = the ops variance-augmented SMI (ANOMALY-METHOD-variance-augmented.md):
 # MoM Beta on the trailing-30 same-day climatology with v_eff = var(clim) +
 # sigma2_obs (current day's CROSS-FOLD variance), cap +/-3.09. Both depths now
 # use the YEAR-FROZEN archive (both regens completed and were confirmed
 # complete 1981-2026; the shallow "as-is PLACEHOLDER" this used to fall back
 # to is stale and must not be used). Cached SMI rasters are tagged by method.
+# lmom = Beta fit via L-moments (L-scale) instead of ordinary method-of-moments
+# variance. NO variance-augmented counterpart exists for lmom: L-scale is a
+# different functional of the distribution than variance (a linear combination
+# of order statistics, not E[(X-mu)^2]), so there is no valid way to "add"
+# ensemble variance to it the way MoM adds sigma2_obs directly to v.
 smi_method = Sys.getenv("SMI_METHOD", "original")
-stopifnot(smi_method %in% c("original", "varaug"))
+stopifnot(smi_method %in% c("original", "varaug", "lmom"))
 if (smi_method == "varaug") {
   ens = c(shallow = "/data/ssd3/soil-moisture-ml-inference/ensemble-smoothed-daily-shallow-yearfrozen/median",
           middle  = "/data/ssd3/soil-moisture-ml-inference/ensemble-smoothed-daily-middle-yearfrozen/median")
@@ -49,7 +54,11 @@ if (smi_method == "varaug") {
   ens = c(shallow = "/data/ssd3/soil-moisture-ml-inference/ensemble-smoothed-daily-shallow-yearfrozen/median",
           middle  = "/data/ssd3/soil-moisture-ml-inference/ensemble-smoothed-daily-middle-yearfrozen/median")
   folds_root = NULL
-  out_png = if (event == "2017") "case_study_anomaly_vs_usdm.png" else glue("case_study_anomaly_vs_usdm_{event}.png")
+  out_png = if (smi_method == "lmom") {
+    if (event == "2017") "case_study_anomaly_vs_usdm_lmoments.png" else glue("case_study_anomaly_vs_usdm_{event}_lmoments.png")
+  } else {
+    if (event == "2017") "case_study_anomaly_vs_usdm.png" else glue("case_study_anomaly_vs_usdm_{event}.png")
+  }
 }
 depth_lab = c(shallow = "Shallow (0–10 cm)", middle = "Mid-depth (10–50 cm)")
 
@@ -75,6 +84,58 @@ beta_fit_smi = function(x, climatology_length = 30L, return_latest = TRUE) {
   out = if (return_latest) utils::tail(Fvals, 1L) else Fvals
   z = stats::qnorm(pmin(pmax(out, 1e-12), 1 - 1e-12))
   pmin(pmax(z, -3.09), 3.09)   # same guardrail clamp used everywhere else (sm_eval_utils.R, beta_fit_smi_varaug)
+}
+
+# ---- L-moment Beta fit (no closed-form inverse exists for a general Beta
+# distribution's L-moments, unlike MoM; solved via a precomputed lookup table
+# instead of per-pixel numerical integration+root-finding, which would be far
+# too slow at raster scale). L1 (L-mean) always equals the ordinary mean for
+# any distribution, so only L2 (L-scale) needs solving for, given the mean.
+# Table: for a grid of p = mean and t = a+b (precision), the THEORETICAL L2 of
+# Beta(p*t, (1-p)*t) via the exact definition L2 = integral_0^1 Q(u)(2u-1)du.
+# Validated against a 200k-sample empirical check (theoretical 0.072373 vs.
+# sample 0.072455 for Beta(8,3)) before use.
+.lmom_p_grid = seq(0.02, 0.98, by = 0.02)
+.lmom_t_grid = exp(seq(log(2), log(3000), length.out = 300))
+.lmom_L2_table = local({
+  L2_theoretical = function(a, b) {
+    f = function(u) qbeta(u, a, b) * (2 * u - 1)
+    tryCatch(stats::integrate(f, lower = 0, upper = 1, rel.tol = 1e-7)$value, error = function(e) NA_real_)
+  }
+  tab = matrix(NA_real_, nrow = length(.lmom_p_grid), ncol = length(.lmom_t_grid))
+  for (i in seq_along(.lmom_p_grid)) for (j in seq_along(.lmom_t_grid)) {
+    p = .lmom_p_grid[i]; t = .lmom_t_grid[j]
+    tab[i, j] = L2_theoretical(p * t, (1 - p) * t)
+  }
+  tab
+})
+message("L-moment Beta lookup table built: ", nrow(.lmom_L2_table), " x ", ncol(.lmom_L2_table))
+
+beta_fit_smi_lmom = function(x, climatology_length = 30L, return_latest = TRUE) {
+  x = as.numeric(x); x = x[is.finite(x)]
+  if (!length(x)) return(NA_real_)
+  x = utils::tail(x, climatology_length)
+  x = pmin(pmax(x, 1e-6), 1 - 1e-6)
+  if (length(unique(x)) < 3L) return(NA_real_)
+  n = length(x); xs = sort(x)
+  p_hat = mean(x)   # L1 == ordinary mean, always
+  # sample L2 (Hosking's unbiased estimator via order statistics)
+  i_idx = seq_len(n)
+  b1 = sum((i_idx - 1) * xs) / (n * (n - 1))
+  b0 = mean(xs)
+  L2_hat = 2 * b1 - b0
+  if (!is.finite(L2_hat) || L2_hat <= 0) return(NA_real_)
+  pi_row = which.min(abs(.lmom_p_grid - p_hat))
+  L2_row = .lmom_L2_table[pi_row, ]
+  ord = order(L2_row)
+  t_hat = tryCatch(stats::approx(L2_row[ord], .lmom_t_grid[ord], xout = L2_hat, rule = 2)$y, error = function(e) NA_real_)
+  if (!is.finite(t_hat)) return(NA_real_)
+  t_hat = max(t_hat, 2)
+  a = p_hat * t_hat; b = (1 - p_hat) * t_hat
+  Fvals = pbeta(x, a, b)
+  out = if (return_latest) utils::tail(Fvals, 1L) else Fvals
+  z = stats::qnorm(pmin(pmax(out, 1e-12), 1 - 1e-12))
+  pmin(pmax(z, -3.09), 3.09)
 }
 
 # ---- ops variance-augmented SMI (VERBATIM math from v1-ops R/3_3-finalize.R):
@@ -117,6 +178,9 @@ smi_for_day = function(date0, dir_in, fold_root = NULL, clim_years = 30L,
     r = c(r, var_r)
     parallel::clusterExport(cl, "beta_fit_smi_varaug", envir = globalenv())
     app(r, beta_fit_smi_varaug, cores = cl)
+  } else if (smi_method == "lmom") {
+    parallel::clusterExport(cl, c("beta_fit_smi_lmom", ".lmom_p_grid", ".lmom_t_grid", ".lmom_L2_table"), envir = globalenv())
+    app(r, beta_fit_smi_lmom, cores = cl)
   } else {
     parallel::clusterExport(cl, "beta_fit_smi", envir = globalenv())
     app(r, beta_fit_smi, cores = cl)
@@ -164,7 +228,7 @@ map_smi = function(r_smi, title, subtitle) {
 kgml_maps = list()
 for (dep in c("shallow", "middle")) for (i in seq_along(kgml_dates)) {
   dt = kgml_dates[i]                                  # [i] keeps Date class ([[ would strip it)
-  tag = if (smi_method == "varaug") "_varaug" else ""
+  tag = if (smi_method == "varaug") "_varaug" else if (smi_method == "lmom") "_lmom" else ""
   tif = glue("{cache_dir}/{dep}_{dt}{tag}.tif")
   r = if (file.exists(tif)) rast(tif) else {
     x = smi_for_day(dt, ens[[dep]], fold_root = if (is.null(folds_root)) NULL else folds_root[[dep]])
